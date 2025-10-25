@@ -11,6 +11,11 @@
 // @license      MIT
 // ==/UserScript==
 
+// 声明 LZString 类型
+declare const LZString: {
+    decompressFromUTF16(compressed: string): string;
+};
+
 // 类型定义
 interface CharacterItem {
     itemHrid: string;
@@ -223,7 +228,7 @@ interface MessageWithEndItems {
                         (window as any).MWI_Toolkit.init_character_data = obj as InitCharacterData;
                         const compressedData = localStorage.getItem("initClientData");
                         if (compressedData) {
-                            const decompressedData = (window as any).LZString.decompressFromUTF16(compressedData);
+                            const decompressedData = LZString.decompressFromUTF16(compressedData);
                             (window as any).MWI_Toolkit.init_client_data = JSON.parse(decompressedData);
                         }
                         // 清空并初始化物品map
