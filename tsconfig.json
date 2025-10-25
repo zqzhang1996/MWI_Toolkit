@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "outFile": "MWI_Toolkit.user.js",
+    "removeComments": false,
+    "noEmitHelpers": true,
+    "importHelpers": false,
+    "alwaysStrict": false,
+    "strict": false
+  },
+  "include": [
+    "src/MWI_Toolkit.ts"
+  ]
+}
