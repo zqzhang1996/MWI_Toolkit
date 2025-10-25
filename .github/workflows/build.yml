@@ -26,19 +26,7 @@ jobs:
         run: npm install -g typescript
 
       - name: Compile TypeScript to JavaScript
-        run: tsc src/MWI_Toolkit.ts --target ES2020 --outFile temp_output.js --removeComments false
-
-      - name: Rebuild with Tampermonkey header and IIFE wrapper
-        run: |
-          # 提取 Tampermonkey header (前12行,不包括 IIFE 开始)
-          head -n 12 src/MWI_Toolkit.ts > MWI_Toolkit.user.js
-          echo "" >> MWI_Toolkit.user.js
-          # 添加 IIFE 开始
-          echo "(function () {" >> MWI_Toolkit.user.js
-          # 添加编译后的代码主体(跳过开头的 'use strict')
-          tail -n +2 temp_output.js >> MWI_Toolkit.user.js
-          # 添加 IIFE 结束
-          echo "})();" >> MWI_Toolkit.user.js
+        run: tsc src/MWI_Toolkit.ts --target ES2020 --outFile MWI_Toolkit.user.js --removeComments false
 
       - name: Upload compiled user script as artifact
         uses: actions/upload-artifact@v4
