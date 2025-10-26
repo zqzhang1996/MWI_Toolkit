@@ -12,12 +12,23 @@
 // @license      MIT
 // ==/UserScript==
 
-// 声明 LZString 类型
+// LZString 声明
 declare const LZString: {
     decompressFromUTF16(compressed: string): string;
 };
 
-//#region 类型定义
+/**
+ * 支持的语言类型
+ * zh: 简体中文
+ * en: 英语
+ */
+type I18nLanguage = 'zh' | 'en';
+
+/**
+ * 国际化资源分类类型
+ * 用于指定要查询的资源类型
+ */
+type I18nCategory = 'actionNames' | 'houseRoomNames' | 'itemNames';
 
 /**
  * 国际化配置选项
@@ -35,19 +46,6 @@ interface I18nOptions {
 }
 
 /**
- * 支持的语言类型
- * zh: 简体中文
- * en: 英语
- */
-type I18nLanguage = 'zh' | 'en';
-
-/**
- * 国际化资源分类类型
- * 用于指定要查询的资源类型
- */
-type I18nCategory = 'actionNames' | 'houseRoomNames' | 'itemNames';
-
-/**
  * 游戏对象结构（从React组件实例中获取）
  */
 interface GameObject {
@@ -59,26 +57,70 @@ interface GameObject {
         };
     };
     state: {
+        actionTypeDrinkSlotsDict: {
+            [actionType: string]: Array<{
+                itemHrid: string;
+            }>
+        }
+        communityBuffs: Array<{
+            hrid: string;
+            isDone: boolean;
+            level: number;
+        }>
     }
 }
 
-//#region ActionDetail
+/**
+ * 初始化客户端数据
+ */
+interface InitClientData {
+    actionDetailMap: {
+        [actionHrid: string]: ActionDetail;
+    }
+    itemDetailMap: {
+        [itemHrid: string]: ItemDetail;
+    }
+    houseRoomDetailMap: {
+        [houseRoomHrid: string]: HouseRoomDetail;
+    }
+    enhancementLevelTotalBonusMultiplierTable: Array<number>
+}
 
 /**
- * 动作类型定义
+ * 物品详细信息
  */
-type ActionType =
-    '/action_types/milking' |
-    '/action_types/foraging' |
-    '/action_types/woodcutting' |
-    '/action_types/cheesesmithing' |
-    '/action_types/crafting' |
-    '/action_types/tailoring' |
-    '/action_types/cooking' |
-    '/action_types/brewing' |
-    '/action_types/alchemy' |
-    '/action_types/enhancing' |
-    '/action_types/combat';
+interface ItemDetail {
+    equipmentDetail?: EquipmentDetail;
+    sortIndex: number;
+}
+
+interface EquipmentDetail {
+    type: string;
+    levelRequirement: Array<{
+        skillHrid: string;
+        level: number;
+    }>
+    combatStats: {
+        [statName: string]: number;
+    }
+    noncombatStats: {
+        [statName: string]: number;
+    }
+    combatEnhancementBonuses: {
+        [statName: string]: number;
+    }
+    noncombatEnhancementBonuses: {
+        [statName: string]: number;
+    }
+}
+
+/**
+ * 房间详细信息
+ */
+interface HouseRoomDetail {
+    skillHrid: string;
+    sortIndex: number;
+}
 
 /**
  * 物品及数量结构
@@ -160,20 +202,6 @@ interface ActionDetail {
 }
 
 /**
- * 怪物刷怪配置结构
- */
-interface MonsterSpawn {
-    /** 怪物的唯一标识符 */
-    combatMonsterHrid: string;
-    /** 难度等级 */
-    difficultyTier: number;
-    /** 刷怪概率 */
-    rate: number;
-    /** 强度值 */
-    strength: number;
-}
-
-/**
  * 战斗区域信息结构
  * 包含普通战斗区域和地下城两种类型的配置
  */
@@ -225,30 +253,19 @@ interface CombatZoneInfo {
     sortIndex: number;
 }
 
-//#endregion
-
-//#region InitClientData
-
-interface InitClientData {
-    /** 物品详细信息映射 */
-    itemDetailMap: {
-        [itemHrid: string]: ItemDetail;
-    };
-    houseRoomDetailMap: {
-        [houseRoomHrid: string]: HouseRoomDetail;
-    }
+/**
+ * 怪物刷怪配置结构
+ */
+interface MonsterSpawn {
+    /** 怪物的唯一标识符 */
+    combatMonsterHrid: string;
+    /** 难度等级 */
+    difficultyTier: number;
+    /** 刷怪概率 */
+    rate: number;
+    /** 强度值 */
+    strength: number;
 }
-
-interface ItemDetail {
-    sortIndex: number;
-}
-
-interface HouseRoomDetail {
-    skillHrid: string;
-    sortIndex: number;
-}
-
-//#endregion
 
 /**
  * 角色物品数据结构
@@ -277,7 +294,7 @@ interface CharacterItem {
 }
 
 /**
- * 角色初始化数据（从WebSocket接收）
+ * 包含角色初始化数据的WebSocket消息
  */
 interface InitCharacterData {
     /** 消息类型标识 */
@@ -296,80 +313,479 @@ interface ItemsUpdatedData {
     endCharacterItems: CharacterItem[];
 }
 
-// --------------------------------------------- 接口前置声明，用于解决循环依赖 ---------------------------------------------
-/**
- * MWI工具包主接口
- */
-interface IMWI_Toolkit {
-    /** 游戏对象实例（从React组件获取） */
-    gameObject: GameObject | null;
-    /** 国际化工具实例 */
-    i18n: IMWI_Toolkit_I18n;
-    /** 物品映射管理实例 */
-    itemsMap: IMWI_Toolkit_ItemsMap;
-    /** 切换角色时的回调函数列表 */
-    switchCharacterCallbacks: (() => void)[];
-    /** 是否已初始化 */
-    initialized: boolean;
-}
-
-/**
- * 国际化工具接口
- * 提供多语言名称查询和反向查询功能
- */
-interface IMWI_Toolkit_I18n {
-    /** 根据物品HRID获取指定语言的物品名称 */
-    getItemName(itemHrid: string, lang: I18nLanguage): string;
-    /** 根据HRID和资源分类获取指定语言的名称 */
-    getName(hrid: string, category: I18nCategory, lang: I18nLanguage): string;
-    /** 根据物品名称获取对应的HRID */
-    getItemHridByName(itemName: string, lang: I18nLanguage): string | null;
-    /** 根据名称和资源分类获取对应的HRID */
-    getHridByName(name: string, category: I18nCategory, lang: I18nLanguage): string | null;
-}
-
-/**
- * 物品映射管理接口
- * 管理角色物品数据，提供查询和事件监听功能
- */
-interface IMWI_Toolkit_ItemsMap {
-    /** 查询指定物品和强化等级的数量 */
-    getCount(itemHrid: string, enhancementLevel?: number): number;
-    /** 查询指定物品的最大强化等级 */
-    getMaxEnhancementLevel(itemHrid: string): number;
-    /** 更新物品数据 */
-    update(endCharacterItems: CharacterItem[]): void;
-    /** 清空所有物品数据 */
-    clear(): void;
-    /** 注册物品更新回调函数 */
-    onItemsUpdated(callback: (items: CharacterItem[]) => void): void;
-    /** 移除物品更新回调函数 */
-    offItemsUpdated(callback: (items: CharacterItem[]) => void): void;
-    /** 触发物品更新事件 */
-    triggerItemsUpdatedEvent(endCharacterItems: CharacterItem[]): void;
-}
-
-//#endregion
-
-/**
- * MWI工具包主类的前置声明
- */
-declare class MWI_Toolkit implements IMWI_Toolkit {
-    /** 单例实例 */
-    static Instance: MWI_Toolkit;
-    initClientData: InitClientData | null;
-    gameObject: GameObject | null;
-    i18n: IMWI_Toolkit_I18n;
-    itemsMap: IMWI_Toolkit_ItemsMap;
-    switchCharacterCallbacks: (() => void)[];
-    initialized: boolean;
-}
-
-
 (function (): void {
     'use strict';
 
+    //#region ActionDetailPlus
+
+    interface ItemCountComponent {
+        itemHrid: string,
+        missingCountSpan?: HTMLSpanElement | null,
+        inventoryCountSpan?: HTMLSpanElement | null,
+        inputCountSpan?: HTMLSpanElement | null,
+        outputItemInput?: HTMLInputElement | null,
+        count: number
+    }
+
+    class MWI_Toolkit_ActionDetailPlus {
+
+        /**
+         * 可加工的物品映射
+         */
+        static processableItemMap = {
+            "/items/milk": "/items/cheese",
+            "/items/verdant_milk": "/items/verdant_cheese",
+            "/items/azure_milk": "/items/azure_cheese",
+            "/items/burble_milk": "/items/burble_cheese",
+            "/items/crimson_milk": "/items/crimson_cheese",
+            "/items/rainbow_milk": "/items/rainbow_cheese",
+            "/items/holy_milk": "/items/holy_cheese",
+            "/items/log": "/items/lumber",
+            "/items/birch_log": "/items/birch_lumber",
+            "/items/cedar_log": "/items/cedar_lumber",
+            "/items/purpleheart_log": "/items/purpleheart_lumber",
+            "/items/ginkgo_log": "/items/ginkgo_lumber",
+            "/items/redwood_log": "/items/redwood_lumber",
+            "/items/arcane_log": "/items/arcane_lumber",
+            "/items/cotton": "/items/cotton_fabric",
+            "/items/flax": "/items/linen_fabric",
+            "/items/bamboo_branch": "/items/bamboo_fabric",
+            "/items/cocoon": "/items/silk_fabric",
+            "/items/radiant_fiber": "/items/radiant_fabric"
+        };
+
+        /**
+         * 监听页面变化
+         */
+        static initialize() {
+            let lastPanel = null;
+            const observer = new MutationObserver(() => {
+                const panel = document.querySelector('[class^="SkillActionDetail_regularComponent"]');
+                if (panel && panel !== lastPanel) {
+                    lastPanel = panel;
+                    setTimeout(() => {
+                        MWI_Toolkit_ActionDetailPlus.enhanceSkillActionDetail();
+                    }, 50);
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        /**
+         * 增强技能行动详情面板
+         */
+        static enhanceSkillActionDetail() {
+            const { upgradeItemHrid, inputItems, outputItems } = this.calculateActionDetail();
+
+            const upgradeItemComponent: ItemCountComponent = { itemHrid: '', count: 0 };
+            if (upgradeItemHrid) {
+                const missingCountContainer = document.querySelector('[class^="SkillActionDetail_upgradeItemSelectorInput"]')?.parentElement?.previousElementSibling as HTMLDivElement;
+                if (missingCountContainer) {
+                    const newTextSpan = document.createElement('span');
+                    newTextSpan.textContent = missingCountContainer.textContent;
+                    newTextSpan.style.height = window.getComputedStyle(document.querySelector('[class*="SkillActionDetail_levelRequirement"]')).height;
+                    missingCountContainer.innerHTML = '';
+                    missingCountContainer.appendChild(newTextSpan);
+
+                    const missingCountComponent = document.createElement('div');
+                    missingCountComponent.style.display = 'flex';
+                    missingCountComponent.style.alignItems = 'flex-end';
+                    missingCountComponent.style.flexDirection = 'column';
+
+                    const missingCountSpan = document.createElement('span');
+                    missingCountSpan.style.display = 'flex';
+                    missingCountSpan.style.alignItems = 'center';
+                    missingCountSpan.style.color = '#faa21e';
+                    missingCountComponent.appendChild(missingCountSpan);
+
+                    upgradeItemComponent.itemHrid = upgradeItemHrid;
+                    upgradeItemComponent.missingCountSpan = missingCountSpan;
+                    upgradeItemComponent.count = 1; // 升级物品固定需求1个
+
+                    missingCountContainer.appendChild(missingCountComponent);
+                }
+            }
+
+            // [{itemHrid, missingCountSpan, inventoryCountSpan, inputCountSpan, count}]
+            const inputItemComponents = Array<ItemCountComponent>();
+            if (inputItems) {
+                const inputItemComponentContainer = document.querySelector('[class^="SkillActionDetail_itemRequirements"]') as HTMLDivElement;
+                const missingCountContainer = inputItemComponentContainer?.parentElement?.previousElementSibling as HTMLDivElement;
+                if (missingCountContainer) {
+                    const newTextSpan = document.createElement('span');
+                    newTextSpan.textContent = missingCountContainer.textContent;
+                    newTextSpan.style.height = window.getComputedStyle(document.querySelector('[class*="SkillActionDetail_levelRequirement"]')).height;
+                    missingCountContainer.innerHTML = '';
+                    missingCountContainer.appendChild(newTextSpan);
+
+                    const missingCountComponent = document.createElement('div');
+                    missingCountComponent.style.display = 'flex';
+                    missingCountComponent.style.alignItems = 'flex-end';
+                    missingCountComponent.style.flexDirection = 'column';
+
+                    const inventoryCountSpans = inputItemComponentContainer?.querySelectorAll('[class*="SkillActionDetail_inventoryCount"]') as NodeListOf<HTMLSpanElement>;
+                    const inputCountSpans = inputItemComponentContainer?.querySelectorAll('[class*="SkillActionDetail_inputCount"]') as NodeListOf<HTMLSpanElement>;
+                    const itemContainers = inputItemComponentContainer?.querySelectorAll('[class*="Item_itemContainer"]') as NodeListOf<HTMLDivElement>;
+                    for (let i = 0; i < itemContainers.length; i++) {
+                        inputCountSpans[i].style.color = '#E7E7E7';
+
+                        const inputItemHrid = '/items/' + itemContainers[i].querySelector('svg use').getAttribute('href').split('#').pop();
+                        const inputItemCount = inputItems.find(item => item.itemHrid === inputItemHrid)?.count || 0;
+                        const missingCountSpan = document.createElement('span');
+                        missingCountSpan.style.height = window.getComputedStyle(itemContainers[i]).height;
+                        missingCountSpan.style.display = 'flex';
+                        missingCountSpan.style.alignItems = 'center';
+                        missingCountSpan.style.color = '#faa21e';
+                        missingCountComponent.appendChild(missingCountSpan);
+                        inputItemComponents.push({ itemHrid: inputItemHrid, missingCountSpan, inventoryCountSpan: inventoryCountSpans[i], inputCountSpan: inputCountSpans[i], count: inputItemCount });
+                    }
+
+                    missingCountContainer.appendChild(missingCountComponent);
+                }
+            }
+
+            // [{itemHrid, input, count}]
+            const outputItemComponents = Array<ItemCountComponent>();
+            let lastOutputItemComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]') as HTMLDivElement;
+            const outputItemComponentContainer = lastOutputItemComponent.parentElement as HTMLDivElement;
+            const skillActionTimeInput = lastOutputItemComponent.querySelector('input');
+            const skillActionTimeButtons = lastOutputItemComponent.querySelectorAll('button');
+
+            for (const outputItem of outputItems) {
+                if (outputItem.count === 1 && outputItems.length === 1) break; // 仅有一个产出且数量为1时不创建额外输入框
+                const { component, input } = this.createOutputItemComponent(outputItem.itemHrid);
+                if (component && input) {
+                    outputItemComponentContainer.insertBefore(component, lastOutputItemComponent.nextSibling);
+                    outputItemComponents.push({ itemHrid: outputItem.itemHrid, outputItemInput: input, count: outputItem.count });
+                    lastOutputItemComponent = component;
+                }
+            }
+
+            // 联动
+            let linking = false;
+            function updateSkillActionDetail(e: Event) {
+                if (linking) return;
+                linking = true;
+                const target = e.target as HTMLInputElement;
+                const index = outputItemComponents.findIndex(component => component.outputItemInput === target);
+                const targetValue = parseInt(target.value, 10);
+                if (index !== -1) {
+                    skillActionTimeInput.value = (isNaN(targetValue)) ? '∞' : Math.ceil(targetValue / outputItemComponents[index].count).toString();
+                    MWI_Toolkit_Utils.reactInputTriggerHack(skillActionTimeInput);
+                }
+                const skillActionTimes = parseInt(skillActionTimeInput.value, 10);
+                outputItemComponents.forEach(component => {
+                    if (component.outputItemInput !== target) {
+                        component.outputItemInput.value = (isNaN(skillActionTimes)) ? '∞' : Math.ceil(skillActionTimes * component.count).toString();
+                    }
+                });
+                inputItemComponents.forEach(component => {
+                    const inventoryCount = MWI_Toolkit_ItemsMap.getCount(component.itemHrid);
+                    const requiredCount = component.count * skillActionTimes;
+                    if (isNaN(skillActionTimes)) {
+                        component.missingCountSpan.textContent = '';
+                        component.inventoryCountSpan.style.color = '';
+                    }
+                    else {
+                        if (requiredCount > inventoryCount) {
+                            component.missingCountSpan.textContent = MWI_Toolkit_Utils.formatNumber(requiredCount - inventoryCount);
+                            component.inventoryCountSpan.style.color = '#f44336';
+                        } else {
+                            component.missingCountSpan.textContent = ' ';
+                            component.inventoryCountSpan.style.color = '#E7E7E7';
+                        }
+                    }
+                    component.inputCountSpan.textContent = '\u00A0/ ' + MWI_Toolkit_Utils.formatNumber(component.count * ((isNaN(skillActionTimes) ? 1 : skillActionTimes))) + '\u00A0';
+                });
+                if (upgradeItemComponent.missingCountSpan) {
+                    if (isNaN(skillActionTimes)) { upgradeItemComponent.missingCountSpan.textContent = ''; }
+                    else {
+                        const requiredCount = upgradeItemComponent.count * skillActionTimes;
+                        const inventoryCount = MWI_Toolkit_ItemsMap.getCount(upgradeItemComponent.itemHrid);
+
+                        if (requiredCount > inventoryCount) {
+                            upgradeItemComponent.missingCountSpan.textContent = MWI_Toolkit_Utils.formatNumber(requiredCount - inventoryCount);
+                        } else {
+                            upgradeItemComponent.missingCountSpan.textContent = ' ';
+                        }
+                    }
+                }
+
+                linking = false;
+            }
+
+            skillActionTimeInput.addEventListener('input', updateSkillActionDetail);
+            outputItemComponents.forEach(component => {
+                component.outputItemInput.addEventListener('input', updateSkillActionDetail);
+            });
+            skillActionTimeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setTimeout(() => {
+                        skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
+                    }, 20);
+                });
+            });
+
+            // 初次填充
+            setTimeout(() => {
+                skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
+            }, 20);
+        }
+
+        static calculateActionDetail(): { upgradeItemHrid: string | null; inputItems: Array<ItemWithCount> | null; outputItems: Array<ItemWithCount> | null } {
+            const actionDetail = this.getActionDetail();
+            const actionType = this.getActionType();
+            if (!actionDetail || !actionType) {
+                console.warn('[MWI_Toolkit] 无法获取动作详情');
+                return { upgradeItemHrid: null, inputItems: null, outputItems: null };
+            }
+            // console.log('MWI_Toolkit_ActionDetailPlus: 获取到动作详情', actionDetail);
+
+            const upgradeItemHrid = actionDetail.upgradeItemHrid;
+            const inputItems = actionDetail.inputItems ? JSON.parse(JSON.stringify(actionDetail.inputItems)) as Array<ItemWithCount> : null;
+            const outputItems = actionDetail.outputItems ? JSON.parse(JSON.stringify(actionDetail.outputItems)) as Array<ItemWithCount> : Array<ItemWithCount>();
+
+            const drinkSlots = this.getActionTypeDrinkSlots();
+            const drinkConcentration = this.getDrinkConcentration();
+            // console.log('MWI_Toolkit_ActionDetailPlus: 获取到茶列表', drinkSlots, drinkConcentration);
+
+            // 检查采集数量加成
+            const gatheringBuff = (drinkSlots?.some(itemHrid => itemHrid === '/items/gathering_tea') ? 0.15 * drinkConcentration : 0)
+                + this.getEquipmentGatheringBuff() + this.getCommunityGatheringBuff();
+            // 检查加工茶加成
+            const processingBuff = (drinkSlots?.some(itemHrid => itemHrid === '/items/processing_tea') ? 0.15 * drinkConcentration : 0);
+            // 检查美食茶加成
+            const gourmetBuff = (drinkSlots?.some(itemHrid => itemHrid === '/items/gourmet_tea') ? 0.12 * drinkConcentration : 0);
+            // 检查工匠茶加成
+            const artisanBuff = (drinkSlots?.some(itemHrid => itemHrid === '/items/artisan_tea') ? 0.1 * drinkConcentration : 0);
+
+            if (['milking', 'foraging', 'woodcutting', /*'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing'*/].includes(actionType)) {
+                const dropTable = actionDetail.dropTable;
+                for (const dropItem of dropTable) {
+                    const averageCount = dropItem.dropRate * (dropItem.minCount + dropItem.maxCount) / 2 * (1 + gatheringBuff);
+                    const processedItemHrid = this.processableItemMap[dropItem.itemHrid];
+                    if (processedItemHrid) {
+                        outputItems.push({ itemHrid: dropItem.itemHrid, count: averageCount * (1 - processingBuff), });
+                        outputItems.push({ itemHrid: processedItemHrid, count: averageCount * (1 - processingBuff) / 2 / (1 - artisanBuff) + averageCount * processingBuff / 2, });
+                    } else {
+                        outputItems.push({ itemHrid: dropItem.itemHrid, count: averageCount, });
+                    }
+                }
+            }
+            if ([/*'milking', 'foraging', 'woodcutting', 'cheesesmithing', 'crafting', 'tailoring',*/ 'cooking', 'brewing'].includes(actionType)) {
+                for (const outputItem of outputItems) { outputItem.count = outputItem.count * (1 + gourmetBuff); }
+            }
+            if ([/*'milking', 'foraging', 'woodcutting',*/ 'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing'].includes(actionType)) {
+                for (const inputItem of inputItems) { inputItem.count = inputItem.count * (1 - artisanBuff); }
+            }
+
+            return { upgradeItemHrid, inputItems, outputItems };
+        }
+
+        /**
+         * 创建output数量栏，返回 [{component, input}]
+         * @param itemHrid 物品的唯一标识符
+         * @returns { component: HTMLDivElement; input: HTMLInputElement } | null
+         */
+        static createOutputItemComponent(itemHrid: string): { component: HTMLDivElement; input: HTMLInputElement } | null {
+            const origComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]') as HTMLDivElement;
+            if (!origComponent) return null;
+
+            // 克隆外层div（不带子内容）
+            const component = origComponent.cloneNode(false) as HTMLDivElement;
+
+            const originalActionLabel = document.querySelector('[class^="SkillActionDetail_actionContainer"] [class^="SkillActionDetail_label"]') as HTMLDivElement;
+            if (Object.values(MWI_Toolkit_ActionDetailPlus.processableItemMap).includes(itemHrid)) {
+                const tab = originalActionLabel.cloneNode(false) as HTMLDivElement;
+                tab.style.width = window.getComputedStyle(originalActionLabel).width;
+                tab.className = 'SkillActionDetail_tab';
+                tab.textContent = '┗';
+                component.appendChild(tab);
+            }
+
+            // 物品图标
+            const itemIcon = document.createElement('div');
+            itemIcon.style.width = window.getComputedStyle(originalActionLabel).width;
+            itemIcon.style.height = window.getComputedStyle(originalActionLabel).height;
+            itemIcon.style.marginRight = '2px';
+            itemIcon.style.display = 'flex';
+            itemIcon.style.alignItems = 'center';
+            itemIcon.style.justifyContent = 'center';
+
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '20px');
+            svg.setAttribute('height', '20px');
+            svg.style.display = 'block';
+            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', MWI_Toolkit_Utils.getIconHrefByItemHrid(itemHrid));
+            svg.appendChild(use);
+            itemIcon.appendChild(svg);
+
+            component.appendChild(itemIcon);
+
+            // 输入框
+            const origInputWrap = origComponent.querySelector('[class^="SkillActionDetail_input"]') as HTMLDivElement;
+            const inputWrap = origInputWrap.cloneNode(true) as HTMLDivElement;
+            const origInput = origInputWrap.querySelector('input');
+            const input = inputWrap.querySelector('input');
+            input.addEventListener('focus', function () {
+                setTimeout(() => {
+                    input.select();
+                }, 0);
+            });
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    if (origInput) {
+                        const event = new KeyboardEvent('keydown', {
+                            bubbles: true,
+                            cancelable: true,
+                            key: 'Enter',
+                            code: 'Enter',
+                            keyCode: 13,
+                            which: 13
+                        });
+                        origInput.dispatchEvent(event);
+                    }
+                }
+            });
+            component.appendChild(inputWrap);
+
+            if (!Object.values(MWI_Toolkit_ActionDetailPlus.processableItemMap).includes(itemHrid)) {
+                // 快捷填充按钮
+                const btns = [
+                    { val: 1000, txt: '1k' },
+                    { val: 2000, txt: '2k' },
+                    { val: 5000, txt: '5k' }
+                ];
+                const origButtons = origComponent.querySelectorAll('button');
+                const buttonClass = origButtons.length > 0 ? origButtons[0].className : '';
+
+                btns.forEach(({ val, txt }) => {
+                    const btn = document.createElement('button');
+                    btn.className = buttonClass;
+                    btn.textContent = txt;
+                    btn.addEventListener('click', () => {
+                        input.value = val.toString();
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                    component.appendChild(btn);
+                });
+            }
+
+            return { component, input };
+        }
+
+        static getActionHrid(): string {
+            const actionNameDiv = document.querySelector('[class^="SkillActionDetail_name"]') as HTMLDivElement;
+            const actionName = actionNameDiv ? actionNameDiv.textContent : '';
+            return MWI_Toolkit_I18n.getHridByName(actionName, 'actionNames', MWI_Toolkit.getGameLanguage());
+        }
+
+        static getActionDetail(): ActionDetail | null {
+            const actionHrid = MWI_Toolkit_ActionDetailPlus.getActionHrid();
+            return MWI_Toolkit.initClientData?.actionDetailMap?.[`${actionHrid}`];
+        }
+
+        static getActionType(): string | null {
+            const actionDetail = MWI_Toolkit_ActionDetailPlus.getActionDetail();
+            const actionType = actionDetail?.type?.split('/').pop() || '';
+            // 仅支持八种常规类型
+            if (['milking', 'foraging', 'woodcutting', 'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing'].includes(actionType)) {
+                return actionType;
+            }
+            return null;
+        }
+
+        static getActionTypeDrinkSlots(): Array<string> {
+            const actionType = MWI_Toolkit_ActionDetailPlus.getActionType();
+            if (!actionType) { return []; }
+            const drinkSlots: Array<string> = [];
+            MWI_Toolkit.gameObject?.state?.actionTypeDrinkSlotsDict?.[`/action_types/${actionType}`].forEach(drink => {
+                if (drink && drink.itemHrid) {
+                    drinkSlots.push(drink.itemHrid);
+                }
+            });
+            // 对三采添加对应的工匠茶数据用于计算加工数量
+            const processActionType = { milking: 'cheesesmithing', foraging: 'tailoring', woodcutting: 'crafting' }[actionType] || null;
+            if (processActionType) {
+                const processDrinkSlots = MWI_Toolkit.gameObject?.state?.actionTypeDrinkSlotsDict?.[`/action_types/${processActionType}`];
+                processDrinkSlots.forEach(drink => {
+                    if (drink && drink.itemHrid == '/items/artisan_tea') {
+                        drinkSlots.push(drink.itemHrid);
+                    }
+                });
+            }
+            return drinkSlots;
+        }
+
+        static getDrinkConcentration(): number {
+            const enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/guzzling_pouch");
+            if (enhancementLevel != -1) {
+                return 1
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/guzzling_pouch`].equipmentDetail.noncombatStats.drinkConcentration
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/guzzling_pouch`].equipmentDetail.noncombatEnhancementBonuses.drinkConcentration
+                    * MWI_Toolkit.initClientData?.enhancementLevelTotalBonusMultiplierTable[enhancementLevel];
+            }
+            return 1;
+        }
+
+        static getEquipmentGatheringBuff(): number {
+            let equipmentGatheringBuff = 0;
+            const philosophers_earrings_enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/philosophers_earrings");
+            const earrings_of_gathering_enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/earrings_of_gathering");
+            const philosophers_ring_enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/philosophers_ring");
+            const ring_of_gathering_enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/ring_of_gathering");
+
+            if (philosophers_earrings_enhancementLevel != -1) {
+                equipmentGatheringBuff = equipmentGatheringBuff
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/philosophers_earrings`].equipmentDetail.noncombatStats.gatheringQuantity
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/philosophers_earrings`].equipmentDetail.noncombatEnhancementBonuses.gatheringQuantity
+                    * MWI_Toolkit.initClientData?.enhancementLevelTotalBonusMultiplierTable[philosophers_earrings_enhancementLevel];
+            } else if (earrings_of_gathering_enhancementLevel != -1) {
+                equipmentGatheringBuff = equipmentGatheringBuff
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/earrings_of_gathering`].equipmentDetail.noncombatStats.gatheringQuantity
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/earrings_of_gathering`].equipmentDetail.noncombatEnhancementBonuses.gatheringQuantity
+                    * MWI_Toolkit.initClientData?.enhancementLevelTotalBonusMultiplierTable[earrings_of_gathering_enhancementLevel];
+            }
+
+            if (philosophers_ring_enhancementLevel != -1) {
+                equipmentGatheringBuff = equipmentGatheringBuff
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/philosophers_ring`].equipmentDetail.noncombatStats.gatheringQuantity
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/philosophers_ring`].equipmentDetail.noncombatEnhancementBonuses.gatheringQuantity
+                    * MWI_Toolkit.initClientData?.enhancementLevelTotalBonusMultiplierTable[philosophers_ring_enhancementLevel];
+            } else if (ring_of_gathering_enhancementLevel != -1) {
+                equipmentGatheringBuff = equipmentGatheringBuff
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/ring_of_gathering`].equipmentDetail.noncombatStats.gatheringQuantity
+                    + MWI_Toolkit.initClientData?.itemDetailMap?.[`/items/ring_of_gathering`].equipmentDetail.noncombatEnhancementBonuses.gatheringQuantity
+                    * MWI_Toolkit.initClientData?.enhancementLevelTotalBonusMultiplierTable[ring_of_gathering_enhancementLevel];
+            }
+            return equipmentGatheringBuff;
+        }
+
+        static getCommunityGatheringBuff(): number {
+            const communityBuffs = MWI_Toolkit.gameObject?.state?.communityBuffs || [];
+            for (const buff of communityBuffs) {
+                if (buff.hrid === "/community_buff_types/gathering_quantity" && !buff.isDone) {
+                    return buff.level * 0.005 + 0.195;
+                }
+            }
+            return 0;
+        }
+    }
+
+    //#endregion
+
+    //#region Utils
+
+    /**
+     * 静态工具类
+     */
     class MWI_Toolkit_Utils {
+        /**
+         * 格式化数字为字符串
+         * @param num 要格式化的数字
+         * @returns 格式化后的字符串
+         */
         static formatNumber(num: number): string {
             // 类型和有效性检查
             if (!Number.isFinite(num)) {
@@ -409,39 +825,55 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
             return 'NaN';
         }
 
-        // 获取物品排序索引
+        /**
+         * 获取物品排序索引
+         * @param hrid 物品的唯一标识符
+         * @returns 物品的排序索引
+         */
         static getSortIndexByHrid(hrid: string): number {
             if (hrid.includes('/items/')) {
-                return (MWI_Toolkit.Instance?.initClientData?.itemDetailMap?.[hrid]?.sortIndex || 9999);
+                return (MWI_Toolkit.initClientData?.itemDetailMap?.[hrid]?.sortIndex || 9999);
             }
             if (hrid.includes('/house_rooms/')) {
-                return (MWI_Toolkit.Instance?.initClientData?.houseRoomDetailMap?.[hrid]?.sortIndex || 0) - 9999;
+                return (MWI_Toolkit.initClientData?.houseRoomDetailMap?.[hrid]?.sortIndex || 0) - 9999;
             }
             return 9999;
         }
 
+        /**
+         * 获取物品图标的链接
+         * @param itemHrid 物品的唯一标识符
+         * @returns 物品图标的链接
+         */
         static getIconHrefByItemHrid(itemHrid: string): string {
-            return '/static/media/items_sprite.d4d08849.svg#' + itemHrid.split('/').pop();
+            return '/static/media/items_sprite.d4d08849.svg#' + (itemHrid.split('/').pop() || '');
         }
 
+        /**
+         * 获取技能图标的链接
+         * @param skillHrid 技能的唯一标识符
+         * @returns 技能图标的链接
+         */
         static getIconHrefBySkillHrid(skillHrid: string): string {
-            return '/static/media/skills_sprite.3bb4d936.svg#' + skillHrid.split('/').pop();
+            return '/static/media/skills_sprite.3bb4d936.svg#' + (skillHrid.split('/').pop() || '');
         }
 
+        /**
+         * 获取房屋图标的链接
+         * @param houseRoomHrid 房屋的唯一标识符
+         * @returns 房屋图标的链接
+         */
         static getIconHrefByHouseRoomHrid(houseRoomHrid: string): string {
-            return MWI_Toolkit_Utils.getIconHrefBySkillHrid(MWI_Toolkit.Instance?.initClientData?.houseRoomDetailMap?.[houseRoomHrid]?.skillHrid || houseRoomHrid);
+            return MWI_Toolkit_Utils.getIconHrefBySkillHrid(MWI_Toolkit.initClientData?.houseRoomDetailMap?.[houseRoomHrid]?.skillHrid || houseRoomHrid);
         }
 
+        /**
+         * 获取杂项图标的链接
+         * @param hrid 杂项的唯一标识符
+         * @returns 杂项图标的链接
+         */
         static getIconHrefByMiscHrid(hrid: string): string {
-            return '/static/media/misc_sprite.6fa5e97c.svg#' + hrid.split('/').pop();
-        }
-
-        static getItemDisplayName(itemHrid: string): string {
-            return MWI_Toolkit.Instance?.i18n?.getItemName(itemHrid, MWI_Toolkit.Instance?.gameObject?.language || 'zh');
-        }
-
-        static getHouseRoomDisplayName(houseRoomHrid: string): string {
-            return MWI_Toolkit.Instance?.i18n?.getName(houseRoomHrid, "houseRoomNames", MWI_Toolkit.Instance?.gameObject?.language || 'zh');
+            return '/static/media/misc_sprite.6fa5e97c.svg#' + (hrid.split('/').pop() || '');
         }
 
         /**
@@ -467,19 +899,23 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
         }
     }
 
+    //#endregion
+
+    //#region I18n
+
     /**
-     * 国际化工具类实现
+     * 国际化静态工具类实现
      * 提供游戏内物品和其他资源的多语言名称查询功能
      */
-    class MWI_Toolkit_I18n implements IMWI_Toolkit_I18n {
+    class MWI_Toolkit_I18n {
         /**
          * 获取物品的本地化名称
          * @param itemHrid 物品的唯一标识符
          * @param lang 目标语言
          * @returns 本地化后的物品名称，如果找不到则返回原始HRID
          */
-        getItemName(itemHrid: string, lang: I18nLanguage): string {
-            return this.getName(itemHrid, "itemNames", lang);
+        static getItemName(itemHrid: string, lang: I18nLanguage): string {
+            return MWI_Toolkit_I18n.getName(itemHrid, "itemNames", lang);
         }
 
         /**
@@ -489,9 +925,9 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * @param lang 目标语言
          * @returns 本地化后的名称，如果找不到则返回原始HRID
          */
-        getName(hrid: string, category: I18nCategory, lang: I18nLanguage): string {
+        static getName(hrid: string, category: I18nCategory, lang: I18nLanguage): string {
             if (!hrid || !category || !lang) { return hrid; }
-            return MWI_Toolkit.Instance?.gameObject?.props?.i18n?.options?.resources?.[lang]?.translation?.[category]?.[hrid] || hrid;
+            return MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[lang]?.translation?.[category]?.[hrid] || hrid;
         }
 
         /**
@@ -500,8 +936,8 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * @param lang 名称所属的语言
          * @returns 对应的物品HRID，如果找不到则返回null
          */
-        getItemHridByName(itemName: string, lang: I18nLanguage): string | null {
-            return this.getHridByName(itemName, "itemNames", lang);
+        static getItemHridByName(itemName: string, lang: I18nLanguage): string | null {
+            return MWI_Toolkit_I18n.getHridByName(itemName, "itemNames", lang);
         }
 
         /**
@@ -511,28 +947,27 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * @param lang 名称所属的语言
          * @returns 对应的HRID，如果找不到则返回null
          */
-        getHridByName(name: string, category: I18nCategory, lang: I18nLanguage): string | null {
+        static getHridByName(name: string, category: I18nCategory, lang: I18nLanguage): string | null {
             if (!name || !category || !lang) { return null; }
-            return Object.entries(MWI_Toolkit.Instance?.gameObject?.props?.i18n?.options?.resources?.[lang]?.translation?.[category] || {})
+            return Object.entries(MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[lang]?.translation?.[category] || {})
                 .find(([, v]) => ((v as string) || '').toLowerCase() === name.toLowerCase().trim())?.[0] ?? null;
         }
     }
+
+    //#endregion
+
+    //#region ItemsMap
 
     /**
      * 物品映射管理类实现
      * 使用二级Map结构存储物品数据：itemHrid -> enhancementLevel -> count
      * 提供物品查询和事件监听功能
      */
-    class MWI_Toolkit_ItemsMap implements IMWI_Toolkit_ItemsMap {
+    class MWI_Toolkit_ItemsMap {
         /** 物品数据映射表：itemHrid -> (enhancementLevel -> count) */
-        private map: Map<string, Map<number, number>>;
+        static map: Map<string, Map<number, number>> = new Map();
         /** 物品更新事件的回调函数列表 */
-        private itemsUpdatedCallbacks: ((items: CharacterItem[]) => void)[];
-
-        constructor() {
-            this.map = new Map();
-            this.itemsUpdatedCallbacks = [];
-        }
+        static itemsUpdatedCallbacks: ((items: CharacterItem[]) => void)[] = [];
 
         /**
          * 查询指定物品和强化等级的数量
@@ -540,8 +975,8 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * @param enhancementLevel 强化等级，默认为0
          * @returns 物品数量，如果不存在则返回0
          */
-        getCount(itemHrid: string, enhancementLevel: number = 0): number {
-            return this.map.get(itemHrid)?.get(enhancementLevel) ?? 0;
+        static getCount(itemHrid: string, enhancementLevel: number = 0): number {
+            return MWI_Toolkit_ItemsMap.map.get(itemHrid)?.get(enhancementLevel) ?? 0;
         }
 
         /**
@@ -549,8 +984,8 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * @param itemHrid 物品的唯一标识符
          * @returns 最大强化等级，如果物品不存在或所有数量为0则返回-1
          */
-        getMaxEnhancementLevel(itemHrid: string): number {
-            const m = this.map.get(itemHrid);
+        static getMaxEnhancementLevel(itemHrid: string): number {
+            const m = MWI_Toolkit_ItemsMap.map.get(itemHrid);
             if (!m) { return -1; }
             let max = -1;
             for (const [level, count] of m) {
@@ -565,94 +1000,68 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * 更新物品数据
          * @param endCharacterItems 要更新的物品列表
          */
-        update(endCharacterItems: CharacterItem[]): void {
+        static update(endCharacterItems: CharacterItem[]): void {
             if (!endCharacterItems) { return; }
             for (const item of endCharacterItems) {
-                if (!this.map.has(item.itemHrid)) {
-                    this.map.set(item.itemHrid, new Map());
+                if (!MWI_Toolkit_ItemsMap.map.has(item.itemHrid)) {
+                    MWI_Toolkit_ItemsMap.map.set(item.itemHrid, new Map());
                 }
-                this.map.get(item.itemHrid)!.set(item.enhancementLevel, item.count);
+                MWI_Toolkit_ItemsMap.map.get(item.itemHrid)!.set(item.enhancementLevel, item.count);
             }
+            MWI_Toolkit_ItemsMap.itemsUpdatedCallbacks.forEach(cb => {
+                try {
+                    cb(endCharacterItems);
+                } catch (e) {
+                    console.error('[MWI_Toolkit] Error in item updated callback:', e);
+                }
+            });
         }
 
         /**
          * 清空所有物品数据
          */
-        clear(): void {
-            this.map.clear();
-        }
-
-        /**
-         * 注册物品更新回调函数
-         * @param callback 当物品数据更新时调用的回调函数
-         */
-        onItemsUpdated(callback: (items: CharacterItem[]) => void): void {
-            if (typeof callback === 'function') {
-                this.itemsUpdatedCallbacks.push(callback);
-            }
-        }
-
-        /**
-         * 移除物品更新回调函数
-         * @param callback 要移除的回调函数
-         */
-        offItemsUpdated(callback: (items: CharacterItem[]) => void): void {
-            const index = this.itemsUpdatedCallbacks.indexOf(callback);
-            if (index > -1) {
-                this.itemsUpdatedCallbacks.splice(index, 1);
-            }
-        }
-
-        /**
-         * 触发物品更新事件
-         * 执行所有已注册的回调函数
-         * @param endCharacterItems 更新的物品数据
-         */
-        triggerItemsUpdatedEvent(endCharacterItems: CharacterItem[]): void {
-            this.itemsUpdatedCallbacks.forEach(cb => {
-                try {
-                    cb(endCharacterItems);
-                } catch (e) {
-                    console.error('Error in item updated callback:', e);
-                }
-            });
+        static clear(): void {
+            MWI_Toolkit_ItemsMap.map.clear();
         }
     }
+
+    //#endregion
+
+    //#region MWI_Toolkit
 
     /**
      * MWI工具包主类
      * 提供游戏数据抓取、国际化、物品管理等核心功能
      * 使用单例模式确保全局只有一个实例
      */
-    class MWI_Toolkit implements IMWI_Toolkit {
-        /** 单例实例 */
-        static Instance: MWI_Toolkit;
-
+    class MWI_Toolkit {
         /** 初始化客户端数据（从localStorage获取） */
-        initClientData: InitClientData | null = null;
+        static initClientData: InitClientData | null = null;
         /** 游戏对象实例（从React组件获取） */
-        gameObject: GameObject | null = null;
-        /** 国际化工具实例 */
-        i18n: IMWI_Toolkit_I18n = new MWI_Toolkit_I18n();
-        /** 物品映射管理实例 */
-        itemsMap: IMWI_Toolkit_ItemsMap = new MWI_Toolkit_ItemsMap();
-        /** 切换角色时的回调函数列表 */
-        switchCharacterCallbacks: (() => void)[] = [];
+        static gameObject: GameObject | null = null;
         /** 是否已初始化 */
-        initialized: boolean = false;
+        static initialized: boolean = false;
 
-        constructor() {
-            // 实现单例模式
-            if (MWI_Toolkit.Instance) { return MWI_Toolkit.Instance; }
-            MWI_Toolkit.Instance = this;
-            this.setupWebSocketInterceptor();
+        static getGameLanguage(): I18nLanguage {
+            return MWI_Toolkit.gameObject?.language || 'zh';
+        }
+
+        /**
+         * 启动工具包
+         * 等待游戏页面加载完成后进行初始化
+         */
+        static start(): void {
+            MWI_Toolkit.setupWebSocketInterceptor();
+            MWI_Toolkit.waitForElement(() => {
+                MWI_Toolkit.initialize();
+            });
         }
 
         /**
          * 设置 WebSocket 消息拦截器
          * 通过劫持 MessageEvent.prototype.data 来拦截所有 WebSocket 消息
          */
-        private setupWebSocketInterceptor(): void {
+        static setupWebSocketInterceptor(): void {
             const oriGet = Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data")?.get;
             if (!oriGet) { return; }
 
@@ -667,7 +1076,7 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
                     const message = oriGet.call(this);
                     Object.defineProperty(this, "data", { value: message }); // 防止循环调用
 
-                    MWI_Toolkit.Instance?.handleWebSocketMessage(message);
+                    MWI_Toolkit?.handleWebSocketMessage(message);
 
                     return message;
                 }
@@ -679,7 +1088,7 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * 解析消息并根据类型进行相应处理
          * @param message WebSocket 消息内容（JSON字符串）
          */
-        private handleWebSocketMessage(message: string): void {
+        static handleWebSocketMessage(message: string): void {
             try {
                 const obj: unknown = JSON.parse(message);
                 // 类型守卫：检查是否为对象
@@ -689,11 +1098,11 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
 
                 // 处理角色初始化消息（使用双重断言）
                 if (msgObj.type === "init_character_data" && Array.isArray(msgObj.characterItems)) {
-                    this.handleInitCharacterData(obj as unknown as InitCharacterData);
+                    MWI_Toolkit.handleInitCharacterData(obj as unknown as InitCharacterData);
                 }
                 // 处理物品变更消息（使用双重断言）
                 else if (Array.isArray(msgObj.endCharacterItems)) {
-                    this.handleEndCharacterItems(obj as unknown as ItemsUpdatedData);
+                    MWI_Toolkit.handleEndCharacterItems(obj as unknown as ItemsUpdatedData);
                 }
             } catch (e) {
                 // 忽略解析错误（非JSON消息或其他错误）
@@ -705,19 +1114,14 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * 当切换角色或刷新页面时会收到此消息
          * @param data 角色初始化数据
          */
-        private handleInitCharacterData(data: InitCharacterData): void {
+        static handleInitCharacterData(data: InitCharacterData): void {
             // 清空并初始化物品映射表
-            this.itemsMap.clear();
-            this.itemsMap.update(data.characterItems);
+            MWI_Toolkit_ItemsMap.clear();
+            MWI_Toolkit_ItemsMap.update(data.characterItems);
 
-            // 触发所有切换角色回调函数
-            this.switchCharacterCallbacks.forEach((callback: () => void) => {
-                try {
-                    callback();
-                } catch (error) {
-                    console.error('Error in switchCharacterCallbacks:', error);
-                }
-            });
+            if (!MWI_Toolkit.initialized) { return; }
+
+            console.log("[MWI_Toolkit] 界面刷新");
         }
 
         /**
@@ -725,65 +1129,9 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * 当物品数量、强化等级等发生变化时会收到此消息
          * @param data 包含变更后物品数据的消息
          */
-        private handleEndCharacterItems(data: ItemsUpdatedData): void {
+        static handleEndCharacterItems(data: ItemsUpdatedData): void {
             // 更新物品映射表
-            this.itemsMap.update(data.endCharacterItems);
-            // 触发物品更新事件，通知所有监听者
-            this.itemsMap.triggerItemsUpdatedEvent(data.endCharacterItems);
-        }
-
-        /**
-         * 初始化工具包
-         * 获取游戏对象实例并设置初始化标志
-         */
-        initialize(): void {
-            this.gameObject = this.getGameObject();
-            this.initClientData = this.getInitClientData();
-            if (!this.gameObject || this.initClientData) {
-                console.error("[MWI_Toolkit] 初始化失败");
-                return;
-            }
-            console.log("[MWI_Toolkit] 已初始化");
-            console.log(this.gameObject, this.initClientData);
-            this.initialized = true;
-        }
-
-        /**
-         * 从DOM元素获取React组件实例
-         * 通过访问React内部的Fiber节点来获取组件实例
-         * @returns React组件实例，如果未找到则返回null
-         */
-        private getGameObject(): GameObject | null {
-            // (e => e?.[Object.keys(e).find(k => k.startsWith('__reactFiber$'))]?.return?.stateNode)(document.querySelector('[class^="GamePage"]'))
-            const gamePageElement = document.querySelector('[class^="GamePage"]') as HTMLElement;
-            if (!gamePageElement) return null;
-
-            // 查找React Fiber的key（格式：__reactFiber$xxx）
-            const reactKey = Object.keys(gamePageElement).find(k => k.startsWith('__reactFiber$'));
-            if (!reactKey) return null;
-
-            // 通过Fiber节点获取组件实例
-            const fiber = (gamePageElement as any)[reactKey];
-            return fiber?.return?.stateNode || null;
-        }
-
-        private getInitClientData(): InitClientData | null {
-            const compressedData = localStorage.getItem("initClientData");
-            if (compressedData) {
-                const decompressedData = LZString.decompressFromUTF16(compressedData);
-                return JSON.parse(decompressedData) as InitClientData;
-            }
-            return null;
-        }
-
-        /**
-         * 启动工具包
-         * 等待游戏页面加载完成后进行初始化
-         */
-        start(): void {
-            this.waitForElement(() => {
-                this.initialize();
-            });
+            MWI_Toolkit_ItemsMap.update(data.endCharacterItems);
         }
 
         /**
@@ -791,7 +1139,7 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
          * 使用 MutationObserver 监听DOM变化
          * @param callback 元素出现后执行的回调函数
          */
-        private waitForElement(callback: () => void): void {
+        static waitForElement(callback: () => void): void {
             const selector = '[class^="GamePage"]';
             const el = document.querySelector(selector);
             if (el) {
@@ -809,14 +1157,64 @@ declare class MWI_Toolkit implements IMWI_Toolkit {
             });
             observer.observe(document.body, { childList: true, subtree: true });
         }
+
+        /**
+         * 初始化工具包
+         * 获取游戏对象实例并设置初始化标志
+         */
+        static initialize(): void {
+            MWI_Toolkit.gameObject = MWI_Toolkit.getGameObject();
+            MWI_Toolkit.initClientData = MWI_Toolkit.getInitClientData();
+            if (!MWI_Toolkit.gameObject || !MWI_Toolkit.initClientData) {
+                console.error("[MWI_Toolkit] 初始化失败");
+                return;
+            }
+            MWI_Toolkit.initialized = true;
+            MWI_Toolkit_ActionDetailPlus.initialize();
+            console.log("[MWI_Toolkit] 已初始化");
+            console.log(MWI_Toolkit.gameObject, MWI_Toolkit.initClientData);
+        }
+
+        /**
+         * 从DOM元素获取React组件实例
+         * 通过访问React内部的Fiber节点来获取组件实例
+         * @returns React组件实例，如果未找到则返回null
+         */
+        static getGameObject(): GameObject | null {
+            // (e => e?.[Object.keys(e).find(k => k.startsWith('__reactFiber$'))]?.return?.stateNode)(document.querySelector('[class^="GamePage"]'))
+            const gamePageElement = document.querySelector('[class^="GamePage"]') as HTMLElement;
+            if (!gamePageElement) return null;
+
+            // 查找React Fiber的key（格式：__reactFiber$xxx）
+            const reactKey = Object.keys(gamePageElement).find(k => k.startsWith('__reactFiber$'));
+            if (!reactKey) return null;
+
+            // 通过Fiber节点获取组件实例
+            const fiber = (gamePageElement as any)[reactKey];
+            return fiber?.return?.stateNode || null;
+        }
+
+        /**
+         * 从localStorage获取初始化客户端数据
+         * 数据以压缩的UTF-16字符串形式存储
+         * @returns 初始化客户端数据对象，如果未找到则返回null
+         */
+        static getInitClientData(): InitClientData | null {
+            const compressedData = localStorage.getItem("initClientData");
+            if (compressedData) {
+                const decompressedData = LZString.decompressFromUTF16(compressedData);
+                return JSON.parse(decompressedData) as InitClientData;
+            }
+            return null;
+        }
     }
 
-    // 防止重复初始化
-    if ((window as any).MWI_Toolkit) { return; }
+    //#endregion
 
-    // 创建工具包实例并挂载到全局 window 对象
-    (window as any).MWI_Toolkit = new MWI_Toolkit();
+    // 防止重复加载
+    if ((window as any).MWI_Toolkit_Started) { return; }
+    (window as any).MWI_Toolkit_Started = true;
 
     // 启动工具包
-    MWI_Toolkit.Instance?.start();
+    MWI_Toolkit.start();
 })();
