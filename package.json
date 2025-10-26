@@ -1,0 +1,14 @@
+{
+    "name": "mwi-toolkit",
+    "version": "5.0.0",
+    "description": "MWI工具集",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc --watch"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.2"
+    },
+    "author": "zqzhang1996",
+    "license": "MIT"
+}
