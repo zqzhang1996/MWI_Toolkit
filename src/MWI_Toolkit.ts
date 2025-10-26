@@ -6,6 +6,7 @@
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
 // @match        https://test.milkywayidle.com/*
+// @require      https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js
 // @grant        none
 // @run-at       document-body
 // @license      MIT
