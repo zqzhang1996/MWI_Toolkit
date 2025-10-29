@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.0
+// @version      5.0.1
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -271,6 +271,10 @@
         static calculateRequiredItems(targetItem) {
             if (targetItem.count === 0)
                 return [];
+            if (targetItem.itemHrid.includes('/house_rooms/')) {
+                // 处理房屋房间逻辑
+                return this.calculateRequiredItemsForHouseRoom(targetItem.itemHrid, targetItem.count);
+            }
             let requiredItems = new Array();
             requiredItems.push({ itemHrid: targetItem.itemHrid, count: targetItem.count });
             const actionTypes = ["cheesesmithing", "crafting", "tailoring", "cooking", "brewing"];
@@ -880,7 +884,8 @@
             dropdown.appendChild(selected);
             dropdown.appendChild(list);
             // 点击展开/收起
-            selected.addEventListener('click', () => {
+            selected.addEventListener('click', (e) => {
+                e.stopPropagation();
                 list.style.display = list.style.display === 'block' ? 'none' : 'block';
             });
             // 点击外部关闭
