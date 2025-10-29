@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.2
+// @version      5.0.3
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -1162,6 +1162,7 @@
             shortageSpan.style.borderRadius = '4px';
             shortageSpan.style.padding = '2px 6px';
             shortageSpan.style.marginLeft = '4px';
+            shortageSpan.style.cursor = 'pointer';
             shortageSpan.addEventListener('click', (e) => {
                 if (e.ctrlKey) {
                     MWI_Toolkit_Calculator.TryGotoActionDetailByRequiredItem(requiredItem);
