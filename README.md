@@ -1,6 +1,6 @@
-**海外源:** [GitHub](https://github.com/zqzhang1996/MWIscript) | [GreasyFork](https://greasyfork.org/en/scripts/550483-mwi-toolkit-actiondetailplus)
+**海外源:** [GitHub](https://github.com/zqzhang1996/MWI_Toolkit) | [GreasyFork](https://greasyfork.org/en/scripts/552330)
 
-**Gitee镜像:** [项目地址](https://gitee.com/zqzhang1996/MWIscript) | [直链下载](https://gitee.com/zqzhang1996/MWIscript/raw/main/MWI_Toolkit_ActionDetailPlus.js)
+**Gitee镜像:** [项目地址](https://gitee.com/zqzhang1996/MWI_Toolkit) | [直链下载](https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js)
 
 ### 本地编译
 ```bash
