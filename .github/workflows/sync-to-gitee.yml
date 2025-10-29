@@ -17,7 +17,7 @@ jobs:
       - name: Update @require field and insert @downloadURL/@updateURL after @license (in workspace only)
         run: |
           declare -A RAW_URLS
-          RAW_URLS[MWI_Toolkit.user.js]="https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit_ActionDetailPlus.js"
+          RAW_URLS[MWI_Toolkit.user.js]="https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js"
           for FILE in MWI_Toolkit.user.js; do
             if [ -f "$FILE" ]; then
               # 删除已有的@downloadURL/@updateURL（防止重复）
