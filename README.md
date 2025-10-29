@@ -45,7 +45,7 @@ cmd /c npm run build
    - 右侧缺口显示面板基于当前库存从源头计算所有缺口材料的数量，需要对制作配方有基本了解，从最基础的原材料开始逐步处理
    - 缺口数量实时更新，跟随库存变化动态调整
    - 已满足需求的物品自动隐藏，保持界面简洁
-   - 按住`Ctrl`点击缺口数字可以跳转到对应的动作面板并填写所需的动作次数，对于产出数量随机的动作会额外增加一定的动作数量，保证行动队列结束后尽可能满足需求
+   - 按住`Ctrl`（MAC中为`Command`）点击缺口数字可以跳转到对应的动作面板并填写所需的动作次数，对于产出数量随机的动作会额外增加一定的动作数量，保证行动队列结束后尽可能满足需求
 
 4. **计算详情查看**
    - 右侧详情显示面板显示等效数量+库存数量/需求数量的格式
@@ -90,7 +90,7 @@ cmd /c npm run build
    - The right Shortages panel calculates all missing materials from scratch based on current inventory, requiring basic knowledge of crafting recipes. Start with the most basic raw materials
    - Shortages quantities update in real time, dynamically adjusting with inventory changes
    - Items that meet requirements are automatically hidden to keep the interface clean
-   - Hold `Ctrl` and click the shortages number to jump to the corresponding action panel and fill in the required action count. For actions with random output, extra actions are added to ensure requirements are met after the queue ends
+   - Hold `Ctrl` (on MAC use `Command`) and click the shortages number to jump to the corresponding action panel and fill in the required action count. For actions with random output, extra actions are added to ensure requirements are met after the queue ends
 
 4. **Calculation Status View**
    - The right Status panel shows equivalent quantity + inventory/requirement format

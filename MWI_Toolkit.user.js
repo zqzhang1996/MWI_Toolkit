@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.4
+// @version      5.0.5
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -1166,7 +1166,7 @@
             shortageSpan.style.marginLeft = '4px';
             shortageSpan.style.cursor = 'pointer';
             shortageSpan.addEventListener('click', (e) => {
-                if (e.ctrlKey) {
+                if (e.ctrlKey || e.metaKey) {
                     MWI_Toolkit_Calculator.TryGotoActionDetailByRequiredItem(requiredItem);
                 }
             });
