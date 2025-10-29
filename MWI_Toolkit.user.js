@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.1
+// @version      5.0.2
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -84,8 +84,8 @@
         }
     }
     class TargetHouseRoom extends TargetItem {
-        constructor(houseRoomHrid, level) {
-            super(houseRoomHrid, level);
+        constructor(houseRoomHrid, level, needCalc = true) {
+            super(houseRoomHrid, level, needCalc);
         }
         initDisplayProperties() {
             this.categoryHrid = '/item_categories/house_rooms';
@@ -191,7 +191,12 @@
                 // 验证并转换为Item实例
                 const validItemsMap = new Map(loadedItems.map((item) => {
                     try {
-                        return [item.itemHrid, new TargetItem(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)];
+                        if (item.itemHrid.includes('/items/')) {
+                            return [item.itemHrid, new TargetItem(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)];
+                        }
+                        if (item.itemHrid.includes('/house_rooms/')) {
+                            return [item.itemHrid, new TargetHouseRoom(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)];
+                        }
                     }
                     catch {
                         return null;

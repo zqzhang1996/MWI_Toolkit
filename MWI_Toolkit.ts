@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.1
+// @version      5.0.2
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -437,8 +437,8 @@ interface ItemsUpdatedData {
     }
 
     class TargetHouseRoom extends TargetItem {
-        constructor(houseRoomHrid: string, level: number) {
-            super(houseRoomHrid, level);
+        constructor(houseRoomHrid: string, level: number, needCalc: boolean = true) {
+            super(houseRoomHrid, level, needCalc);
         }
 
         initDisplayProperties() {
@@ -569,7 +569,12 @@ interface ItemsUpdatedData {
                 const validItemsMap: Map<string, TargetItem> = new Map(
                     loadedItems.map((item: { itemHrid: string; count: number; needCalc: boolean; }) => {
                         try {
-                            return [item.itemHrid, new TargetItem(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)] as [string, TargetItem];
+                            if (item.itemHrid.includes('/items/')) {
+                                return [item.itemHrid, new TargetItem(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)] as [string, TargetItem];
+                            }
+                            if (item.itemHrid.includes('/house_rooms/')) {
+                                return [item.itemHrid, new TargetHouseRoom(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)] as [string, TargetHouseRoom];
+                            }
                         } catch {
                             return null;
                         }
