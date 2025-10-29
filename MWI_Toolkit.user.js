@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.3
+// @version      5.0.4
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -413,6 +413,8 @@
                 return;
             }
             MWI_Toolkit_Calculator.createCalculatorTab(tabsContainer, tabPanelsContainer);
+            MWI_Toolkit_Calculator.targetItemsMap = new Map();
+            MWI_Toolkit_Calculator.requiredItemsMap = new Map();
             // 加载保存数据
             MWI_Toolkit_Calculator.loadTargetItems();
             console.log('[MWI_Toolkit_Calculator] UI初始化完成');
@@ -2010,6 +2012,9 @@
             }
             console.log("[MWI_Toolkit] 界面刷新");
             MWI_Toolkit_Calculator.initializeCalculatorUI();
+            MWI_Toolkit.waitForElement('[class^="GamePage"]', () => {
+                MWI_Toolkit.gameObject = MWI_Toolkit.getGameObject();
+            });
         }
         /**
          * 处理物品变更数据
