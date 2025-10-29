@@ -1,4 +1,4 @@
-name: Sync Scripts to Gitee and Update @require
+name: Sync Scripts to Gitee
 
 on:
   push:
@@ -14,15 +14,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Update @require field and insert @downloadURL/@updateURL after @license (in workspace only)
+      - name: insert @downloadURL/@updateURL after @license (in workspace only)
         run: |
           declare -A RAW_URLS
           RAW_URLS[MWI_Toolkit.user.js]="https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js"
           for FILE in MWI_Toolkit.user.js; do
             if [ -f "$FILE" ]; then
               # 删除已有的@downloadURL/@updateURL（防止重复）
-              sed -i '/^\/\/ @downloadURL[ ]*https:\/\/gitee\.com\/zqzhang1996\/MWI_Toolkit\/raw\/main\//d' "$FILE"
-              sed -i '/^\/\/ @updateURL[ ]*https:\/\/gitee\.com\/zqzhang1996\/MWI_Toolkit\/raw\/main\//d' "$FILE"
+              sed -i '/^\/\/ @downloadURL/d' "$FILE"
+              sed -i '/^\/\/ @updateURL/d' "$FILE"
               # 在@license后面插入@downloadURL和@updateURL
               awk -v durl="// @downloadURL ${RAW_URLS[$FILE]}" -v uurl="// @updateURL ${RAW_URLS[$FILE]}" '
                 {
@@ -36,7 +36,7 @@ jobs:
             fi
           done
 
-      - name: Push to Gitee mirror (with require and URLs replaced)
+      - name: Push to Gitee mirror (with @downloadURL/@updateURL after @license)
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
@@ -44,5 +44,5 @@ jobs:
           git config --global user.email "Pr0phet.chn@outlook.com"
           git remote add gitee https://zqzhang1996:${GITEE_TOKEN}@gitee.com/zqzhang1996/MWI_Toolkit.git
           git add MWI_Toolkit.user.js
-          git commit -m "auto: update @downloadURL and @updateURL for Gitee mirror"
+          git commit -m "auto: Sync Scripts to Gitee mirror"
           git push -f gitee HEAD:main
