@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.0.5
+// @version      5.1.0
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -98,42 +98,41 @@
         }
     }
     class RequiredItem extends DisplayItem {
-        constructor(itemHrid, count, equivalentCount) {
+        constructor(itemHrid, count, shortageCount, overflowCount) {
             super(itemHrid, count);
-            this.equivalentCount = 0;
+            this.shortageCount = 0;
+            this.overflowCount = 0;
             this.shortageDisplayElement = null;
             this.requiredDisplayElement = null;
             this.shortageSpan = null;
-            this.ownedSpan = null;
-            this.equivalentSpan = null;
+            this.overflowSpan = null;
             this.requiredSpan = null;
-            this.requiredDiv = null;
-            this.equivalentCount = equivalentCount;
-        }
-        getShortageCount() {
-            return this.count - this.getOwnedCount() - this.equivalentCount;
+            this.shortageCount = shortageCount;
+            this.overflowCount = overflowCount;
         }
         updateDisplayElement() {
             const ownedCount = this.getOwnedCount();
-            const shortageCount = this.getShortageCount();
             if (this.shortageSpan) {
-                const newText = MWI_Toolkit_Utils.formatNumber(shortageCount);
+                const newText = MWI_Toolkit_Utils.formatNumber(this.shortageCount);
                 if (this.shortageSpan.textContent !== newText) {
                     this.shortageSpan.textContent = newText;
                 }
-                this.shortageDisplayElement.style.display = shortageCount > 0 ? 'flex' : 'none';
+                this.shortageDisplayElement.style.display = this.shortageCount > 0 ? 'flex' : 'none';
             }
-            if (this.equivalentSpan) {
-                const newText = MWI_Toolkit_Utils.formatNumber(this.equivalentCount) + '+';
-                if (this.equivalentSpan.textContent !== newText) {
-                    this.equivalentSpan.textContent = newText;
+            if (this.overflowSpan) {
+                if (this.shortageCount > 0) {
+                    const newText = MWI_Toolkit_Utils.formatNumber(-this.shortageCount);
+                    if (this.overflowSpan.textContent !== newText) {
+                        this.overflowSpan.textContent = newText;
+                    }
+                    this.overflowSpan.style.color = '#f44336';
                 }
-                this.equivalentSpan.hidden = this.equivalentCount <= 0;
-            }
-            if (this.ownedSpan) {
-                const newText = MWI_Toolkit_Utils.formatNumber(ownedCount) + '/';
-                if (this.ownedSpan.textContent !== newText) {
-                    this.ownedSpan.textContent = newText;
+                else {
+                    const newText = MWI_Toolkit_Utils.formatNumber(this.overflowCount);
+                    if (this.overflowSpan.textContent !== newText) {
+                        this.overflowSpan.textContent = newText;
+                    }
+                    this.overflowSpan.style.color = '';
                 }
             }
             if (this.requiredSpan) {
@@ -141,7 +140,6 @@
                 if (this.requiredSpan.textContent !== newText) {
                     this.requiredSpan.textContent = newText;
                 }
-                this.requiredDiv.style.color = shortageCount > 0 ? '#f44336' : '#E7E7E7';
             }
         }
         removeDisplayElement() {
@@ -150,6 +148,7 @@
         }
     }
     class MWI_Toolkit_Calculator {
+        // 获取存储键
         static getStorageKey(characterID = null) {
             if (!characterID) {
                 characterID = MWI_Toolkit?.gameObject?.state?.character?.id;
@@ -272,128 +271,173 @@
                 MWI_Toolkit_Calculator.renderTimeout = null;
             }, 300); // 300ms 防抖延迟
         }
-        // 递归计算所需材料
-        static calculateRequiredItems(targetItem) {
-            if (targetItem.count === 0)
-                return [];
-            if (targetItem.itemHrid.includes('/house_rooms/')) {
-                // 处理房屋房间逻辑
-                return this.calculateRequiredItemsForHouseRoom(targetItem.itemHrid, targetItem.count);
+        // 渲染物品列表
+        static renderItemsDisplay() {
+            MWI_Toolkit_Calculator.targetItemCategoryMap.forEach((category) => {
+                category.updateDisplayElement();
+            });
+            // 这里只需要新增或更新，删除在targetItems变动时进行处理
+            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
+                const details = MWI_Toolkit_Calculator.targetItemDetailsMap.get(categoryHrid);
+                let lastElement = details.querySelector('summary');
+                let itemCount = 0;
+                [...MWI_Toolkit_Calculator.targetItemsMap.values()]
+                    .sort((a, b) => a.sortIndex - b.sortIndex)
+                    .forEach(targetItem => {
+                    if (targetItem.categoryHrid !== categoryHrid) {
+                        return;
+                    }
+                    if (!targetItem.displayElement) {
+                        MWI_Toolkit_Calculator.createTargetItemDisplayElement(targetItem);
+                        lastElement.insertAdjacentElement('afterend', targetItem.displayElement);
+                    }
+                    targetItem.updateDisplayElement();
+                    lastElement = targetItem.displayElement;
+                    itemCount++;
+                });
+                details.hidden = itemCount === 0;
+            });
+            const inventoryMap = MWI_Toolkit_ItemsMap.getInventoryMap();
+            const totalNeeds = MWI_Toolkit_Calculator.calculateAllRequiredItems(new Map());
+            const remainNeeds = MWI_Toolkit_Calculator.calculateAllRequiredItems(inventoryMap);
+            // 移除不存在的物品
+            [...MWI_Toolkit_Calculator.requiredItemsMap.keys()].forEach(itemHrid => {
+                if (!totalNeeds.has(itemHrid)) {
+                    MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid)?.removeDisplayElement();
+                    MWI_Toolkit_Calculator.requiredItemsMap.delete(itemHrid);
+                }
+            });
+            [...totalNeeds.keys()].forEach(itemHrid => {
+                const item = MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid);
+                if (item) {
+                    item.count = totalNeeds.get(itemHrid) || 0;
+                    item.shortageCount = remainNeeds.get(itemHrid) || 0;
+                    item.overflowCount = inventoryMap.get(itemHrid) || 0;
+                }
+                else {
+                    MWI_Toolkit_Calculator.requiredItemsMap.set(itemHrid, new RequiredItem(itemHrid, totalNeeds.get(itemHrid) || 0, remainNeeds.get(itemHrid) || 0, inventoryMap.get(itemHrid) || 0));
+                }
+            });
+            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
+                const shortageDetails = MWI_Toolkit_Calculator.shortageItemDetailsMap.get(categoryHrid);
+                const requiredDetails = MWI_Toolkit_Calculator.requiredItemDetailsMap.get(categoryHrid);
+                let lastShortageElement = shortageDetails.querySelector('summary');
+                let lastRequiredElement = requiredDetails.querySelector('summary');
+                let shortageItemCount = 0;
+                let requiredItemCount = 0;
+                [...MWI_Toolkit_Calculator.requiredItemsMap.values()]
+                    .sort((a, b) => a.sortIndex - b.sortIndex)
+                    .forEach(requiredItem => {
+                    if (requiredItem.categoryHrid !== categoryHrid) {
+                        return;
+                    }
+                    if (!requiredItem.shortageDisplayElement) {
+                        MWI_Toolkit_Calculator.createShortageItemDisplayElement(requiredItem);
+                        lastShortageElement.insertAdjacentElement('afterend', requiredItem.shortageDisplayElement);
+                    }
+                    if (!requiredItem.requiredDisplayElement) {
+                        MWI_Toolkit_Calculator.createRequiredItemDisplayElement(requiredItem);
+                        lastRequiredElement.insertAdjacentElement('afterend', requiredItem.requiredDisplayElement);
+                    }
+                    requiredItem.updateDisplayElement();
+                    lastShortageElement = requiredItem.shortageDisplayElement;
+                    lastRequiredElement = requiredItem.requiredDisplayElement;
+                    shortageItemCount += requiredItem.shortageCount > 0 ? 1 : 0;
+                    requiredItemCount++;
+                });
+                shortageDetails.hidden = shortageItemCount === 0;
+                requiredDetails.hidden = requiredItemCount === 0;
+            });
+        }
+        // 获取物品配方
+        static tryGetRecipe(itemHrid) {
+            const itemName = itemHrid.split('/').pop() || '';
+            // 检查商店兑换
+            const shopHrid = `/shop_items/${itemName}`;
+            if (MWI_Toolkit.initClientData?.shopItemDetailMap?.hasOwnProperty(shopHrid)) {
+                const shopItemDetail = MWI_Toolkit.initClientData?.shopItemDetailMap[shopHrid];
+                if (shopItemDetail.category === "/shop_categories/dungeon") {
+                    const recipe = { inputs: new Array, outputCount: 1 };
+                    shopItemDetail.costs.forEach(cost => {
+                        recipe.inputs.push({ itemHrid: cost.itemHrid, count: cost.count });
+                    });
+                    return recipe;
+                }
             }
-            let requiredItems = new Array();
-            requiredItems.push({ itemHrid: targetItem.itemHrid, count: targetItem.count });
+            // 检查制造配方
             const actionTypes = ["cheesesmithing", "crafting", "tailoring", "cooking", "brewing"];
-            const itemName = targetItem.itemHrid.split('/').pop();
             for (const actionType of actionTypes) {
                 const actionHrid = `/actions/${actionType}/${itemName}`;
                 if (MWI_Toolkit.initClientData?.actionDetailMap?.hasOwnProperty(actionHrid)) {
-                    const actionDetail = MWI_Toolkit.initClientData?.actionDetailMap[actionHrid];
-                    const upgradeItemHrid = actionDetail.upgradeItemHrid;
-                    const inputItems = actionDetail.inputItems;
+                    // 复用 MWI_Toolkit_ActionDetailPlus 的计算逻辑以获得输入/输出（考虑茶水等加成在 calculateRequiredItems 中已处理）
+                    const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid);
+                    if (upgradeItemHrid) {
+                        inputItems.push({ itemHrid: upgradeItemHrid, count: 1 });
+                    } // 升级物品固定需求数量1，添加到输入中
                     let outputCount = 1;
-                    const outputItems = actionDetail.outputItems;
                     if (outputItems && outputItems.length > 0) {
-                        const matchingOutput = outputItems.find(output => output.itemHrid === targetItem.itemHrid);
-                        if (matchingOutput) {
-                            outputCount = matchingOutput.count;
+                        const matching = outputItems.find(o => o.itemHrid === itemHrid);
+                        if (matching)
+                            outputCount = matching.count || 1;
+                    }
+                    return { inputs: inputItems, outputCount };
+                }
+            }
+            return null;
+        }
+        // 计算所有所需材料
+        static calculateAllRequiredItems(inventoryMap) {
+            const result = new Map();
+            const queueMap = new Map();
+            MWI_Toolkit_Calculator.targetItemsMap.forEach(targetItem => {
+                if (targetItem.needCalc && this.targetItemCategoryMap.get(targetItem.categoryHrid)?.needCalc) {
+                    if (targetItem.itemHrid.includes('/house_rooms/')) {
+                        // 处理房屋建造成本
+                        const characterHouseRoomLevel = MWI_Toolkit.gameObject.state.characterHouseRoomDict?.[targetItem.itemHrid]?.level || 0;
+                        const upgradeCostsMap = MWI_Toolkit.initClientData?.houseRoomDetailMap?.[targetItem.itemHrid]?.upgradeCostsMap;
+                        for (let i = characterHouseRoomLevel + 1; i <= targetItem.count && i <= 8; i++) {
+                            upgradeCostsMap[i].forEach(costItem => {
+                                queueMap.set(costItem.itemHrid, (queueMap.get(costItem.itemHrid) || 0) + costItem.count);
+                            });
                         }
                     }
-                    const actionTypeDrinkSlots = MWI_Toolkit_ActionDetailPlus.getActionTypeDrinkSlots(actionType);
-                    // 检查工匠茶加成
-                    let artisanBuff = 0;
-                    if (actionTypeDrinkSlots?.some(itemHrid => itemHrid === '/items/artisan_tea')) {
-                        artisanBuff = 0.1 * MWI_Toolkit_ActionDetailPlus.getDrinkConcentration();
+                    else if (targetItem.count < 0) {
+                        inventoryMap.set(targetItem.itemHrid, (inventoryMap.get(targetItem.itemHrid) || 0) - targetItem.count);
                     }
-                    // 检查美食茶加成
-                    let gourmetBuff = 0;
-                    if (actionTypeDrinkSlots?.some(itemHrid => itemHrid === '/items/gourmet_tea')) {
-                        gourmetBuff = 0.12 * MWI_Toolkit_ActionDetailPlus.getDrinkConcentration();
+                    else {
+                        queueMap.set(targetItem.itemHrid, (queueMap.get(targetItem.itemHrid) || 0) + targetItem.count);
                     }
-                    // 递归计算输入材料
-                    for (const input of inputItems) {
-                        const adjustedCount = input.count * targetItem.count / outputCount / (1 + gourmetBuff) * (1 - artisanBuff);
-                        requiredItems = MWI_Toolkit_Calculator.mergeItemArrays(requiredItems, MWI_Toolkit_Calculator.calculateRequiredItems({ itemHrid: input.itemHrid, count: adjustedCount }));
-                    }
-                    // 处理升级物品（不适用工匠茶加成）
-                    if (upgradeItemHrid) {
-                        requiredItems = MWI_Toolkit_Calculator.mergeItemArrays(requiredItems, MWI_Toolkit_Calculator.calculateRequiredItems({ itemHrid: upgradeItemHrid, count: targetItem.count / outputCount / (1 + gourmetBuff) }));
-                    }
-                    return requiredItems;
                 }
-            }
-            // 添加地下城代币兑换材料计算
-            if (requiredItems.length === 1) {
-                const shopHrid = `/shop_items/${itemName}`;
-                if (MWI_Toolkit.initClientData?.shopItemDetailMap?.hasOwnProperty(shopHrid)) {
-                    const shopItemDetail = MWI_Toolkit.initClientData?.shopItemDetailMap[shopHrid];
-                    if (shopItemDetail.category === "/shop_categories/dungeon") {
-                        shopItemDetail.costs.forEach(cost => {
-                            requiredItems.push({ itemHrid: cost.itemHrid, count: cost.count * targetItem.count });
-                        });
+            });
+            while (queueMap.size > 0) {
+                const [itemHrid, need] = queueMap.entries().next().value;
+                queueMap.delete(itemHrid);
+                const have = inventoryMap.get(itemHrid) || 0;
+                const use = Math.min(have, need);
+                if (use > 0) {
+                    inventoryMap.set(itemHrid, have - use);
+                }
+                const remain = need - use;
+                if (remain > 0) {
+                    result.set(itemHrid, (result.get(itemHrid) || 0) + remain);
+                    const recipe = MWI_Toolkit_Calculator.tryGetRecipe(itemHrid);
+                    if (!recipe)
+                        continue;
+                    const times = Math.ceil(remain / recipe.outputCount);
+                    for (const input of recipe.inputs) {
+                        queueMap.set(input.itemHrid, (queueMap.get(input.itemHrid) || 0) + input.count * times);
                     }
                 }
             }
-            return requiredItems;
+            return result;
         }
-        // 批量计算材料需求
-        static batchCalculateRequiredItems(targetItems) {
-            let allRequiredItems = new Array();
-            for (const targetItem of targetItems) {
-                const requiredItems = MWI_Toolkit_Calculator.calculateRequiredItems(targetItem);
-                allRequiredItems = MWI_Toolkit_Calculator.mergeItemArrays(allRequiredItems, requiredItems);
-            }
-            return allRequiredItems;
-        }
-        // 计算房屋房间所需材料
-        static calculateRequiredItemsForHouseRoom(targetHouseRoomHrid, targetHouseRoomLevel) {
-            let targetItems = Array();
-            const characterHouseRoomLevel = MWI_Toolkit.gameObject.state.characterHouseRoomDict?.[targetHouseRoomHrid]?.level || 0;
-            const upgradeCostsMap = MWI_Toolkit.initClientData?.houseRoomDetailMap?.[targetHouseRoomHrid]?.upgradeCostsMap;
-            for (let i = characterHouseRoomLevel + 1; i <= targetHouseRoomLevel && i <= 8; i++) {
-                targetItems = targetItems.concat(upgradeCostsMap[i] || []);
-            }
-            return MWI_Toolkit_Calculator.batchCalculateRequiredItems(targetItems);
-        }
-        // 计算等效材料
-        static calculateEquivalentItems(requiredItems) {
-            const ownedItems = new Array();
-            const ownedItemsNG = new Array();
-            for (const requiredItem of requiredItems) {
-                const ownedCount = MWI_Toolkit_ItemsMap.getCount(requiredItem.itemHrid);
-                // 负目标数量用于手动标记已有的等效物品
-                const targetItemNG = MWI_Toolkit_Calculator.targetItemsMap.get(requiredItem.itemHrid);
-                const targetCountNG = Math.min((targetItemNG?.needCalc && targetItemNG?.count) ? targetItemNG.count : 0, 0);
-                // 这里count取required和owned-equivalent中的较小值，用于抵消需求
-                ownedItems.push({ itemHrid: requiredItem.itemHrid, count: Math.min(requiredItem.count, ownedCount - targetCountNG) });
-                ownedItemsNG.push({ itemHrid: requiredItem.itemHrid, count: Math.min(requiredItem.count, ownedCount) * -1 });
-            }
-            // 减掉原值得到等效值
-            return MWI_Toolkit_Calculator.mergeItemArrays(MWI_Toolkit_Calculator.batchCalculateRequiredItems(ownedItems), ownedItemsNG);
-        }
-        // 合并材料数组并按排序顺序返回
-        static mergeItemArrays(arr1, arr2) {
-            const map = new Map();
-            for (const item of arr1.concat(arr2)) {
-                if (map.has(item.itemHrid)) {
-                    if (item.itemHrid.includes('/items/')) {
-                        map.get(item.itemHrid).count += item.count;
-                    }
-                    if (item.itemHrid.includes('/house_rooms/')) {
-                        map.get(item.itemHrid).count = Math.max(map.get(item.itemHrid).count, item.count);
-                    }
-                }
-                else {
-                    map.set(item.itemHrid, { itemHrid: item.itemHrid, count: item.count });
-                }
-            }
-            // 排序
-            return Array.from(map.values()).sort((a, b) => MWI_Toolkit_Utils.getSortIndexByItemHrid(a.itemHrid) - MWI_Toolkit_Utils.getSortIndexByItemHrid(b.itemHrid));
-        }
+        // 初始化计算器逻辑
         static initialize() {
             MWI_Toolkit_ItemsMap.itemsUpdatedCallbacks.push((enditemsMap) => {
                 MWI_Toolkit_Calculator.scheduleRender();
             });
         }
+        // 初始化计算器UI
         static initializeCalculatorUI() {
             MWI_Toolkit.waitForElement('[class^="CharacterManagement_tabsComponentContainer"] [class*="TabsComponent_tabsContainer"]', () => {
                 MWI_Toolkit_Calculator.createCalculatorUI();
@@ -424,7 +468,7 @@
             // 新增"MWI计算器"按钮
             const oldTabButtons = tabsContainer.querySelectorAll("button");
             MWI_Toolkit_Calculator.tabButton = oldTabButtons[1].cloneNode(true);
-            MWI_Toolkit_Calculator.tabButton.children[0].textContent = (MWI_Toolkit.getGameLanguage() === 'zh') ? 'MWI计算器' : 'MWI_Calculator';
+            MWI_Toolkit_Calculator.tabButton.children[0].textContent = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? 'MWI计算器' : 'MWI_Calculator';
             oldTabButtons[0].parentElement.appendChild(MWI_Toolkit_Calculator.tabButton);
             // 新增MWI计算器tabPanel
             const oldTabPanels = tabPanelsContainer.querySelectorAll('[class*="TabPanel_tabPanel"]');
@@ -513,7 +557,7 @@
             shortageItemDetails.style.padding = '2px';
             shortageItemDetails.open = true;
             const shortageSummary = document.createElement('summary');
-            shortageSummary.textContent = MWI_Toolkit.getGameLanguage() === 'zh' ? '缺口' : 'Shortages';
+            shortageSummary.textContent = MWI_Toolkit_I18n.getGameLanguage() === 'zh' ? '缺口' : 'Shortages';
             shortageSummary.style.background = '#af3914';
             shortageSummary.style.borderRadius = '4px';
             shortageSummary.style.fontSize = '14px';
@@ -528,7 +572,7 @@
             requiredItemDetails.style.borderRadius = '4px';
             requiredItemDetails.style.padding = '2px';
             const requiredSummary = document.createElement('summary');
-            requiredSummary.textContent = MWI_Toolkit.getGameLanguage() === 'zh' ? '详情(等效+库存/需求)' : 'Status(Equivalent+Owned/Required)';
+            requiredSummary.textContent = MWI_Toolkit_I18n.getGameLanguage() === 'zh' ? '详情(净值/需求)' : 'Status(Net/Required)';
             requiredSummary.style.background = '#1770b3';
             requiredSummary.style.borderRadius = '4px';
             requiredSummary.style.fontSize = '14px';
@@ -548,6 +592,7 @@
                 details.style.background = '#2c2e45';
                 details.style.borderRadius = '4px';
                 details.style.margin = '2px 0px';
+                details.style.padding = '2px 0px';
                 details.open = true;
                 const summary = document.createElement('summary');
                 summary.textContent = MWI_Toolkit_I18n.getName(categoryHrid, 'itemCategoryNames');
@@ -596,7 +641,7 @@
             // 物品搜索输入框
             const itemSearchInput = document.createElement('input');
             itemSearchInput.type = 'text';
-            itemSearchInput.placeholder = (MWI_Toolkit.getGameLanguage() === 'zh') ? '搜索物品名称...' : 'Search item name...';
+            itemSearchInput.placeholder = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '搜索物品名称...' : 'Search item name...';
             itemSearchInput.style.background = '#dde2f8';
             itemSearchInput.style.color = '#000000';
             itemSearchInput.style.border = 'none';
@@ -624,7 +669,7 @@
             const countInput = document.createElement('input');
             countInput.type = 'text';
             countInput.value = '1';
-            countInput.placeholder = (MWI_Toolkit.getGameLanguage() === 'zh') ? '数量' : 'Count';
+            countInput.placeholder = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '数量' : 'Count';
             countInput.style.background = '#dde2f8';
             countInput.style.color = '#000000';
             countInput.style.border = 'none';
@@ -634,7 +679,7 @@
             countInput.style.width = '60px';
             // 添加按钮
             const addButton = document.createElement('button');
-            addButton.textContent = (MWI_Toolkit.getGameLanguage() === 'zh') ? '添加' : 'Add';
+            addButton.textContent = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '添加' : 'Add';
             addButton.style.background = '#4CAF50';
             addButton.style.color = '#FFFFFF';
             addButton.style.border = 'none';
@@ -644,7 +689,7 @@
             addButton.style.cursor = 'pointer';
             // 清空按钮
             const clearAllButton = document.createElement('button');
-            clearAllButton.textContent = (MWI_Toolkit.getGameLanguage() === 'zh') ? '清空' : 'Clear';
+            clearAllButton.textContent = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '清空' : 'Clear';
             clearAllButton.style.background = '#f44336';
             clearAllButton.style.color = '#FFFFFF';
             clearAllButton.style.border = 'none';
@@ -736,7 +781,7 @@
             });
             // 清空按钮事件
             clearAllButton.addEventListener('click', () => {
-                if (confirm((MWI_Toolkit.getGameLanguage() === 'zh') ? '确定要清空所有目标物品吗？' : 'Are you sure you want to clear all target items?')) {
+                if (confirm((MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '确定要清空所有目标物品吗？' : 'Are you sure you want to clear all target items?')) {
                     // 通过事件处理器清空
                     MWI_Toolkit_Calculator.clearAllTargetItems();
                 }
@@ -823,7 +868,7 @@
             levelInput.max = '8';
             levelInput.step = '1';
             levelInput.value = '1';
-            levelInput.placeholder = (MWI_Toolkit.getGameLanguage() === 'zh') ? '等级' : 'Level';
+            levelInput.placeholder = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '等级' : 'Level';
             levelInput.style.background = '#dde2f8';
             levelInput.style.color = '#000000';
             levelInput.style.border = 'none';
@@ -833,7 +878,7 @@
             levelInput.style.width = '35px';
             // 添加按钮
             const addListButton = document.createElement('button');
-            addListButton.textContent = (MWI_Toolkit.getGameLanguage() === 'zh') ? '添加' : 'Add';
+            addListButton.textContent = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '添加' : 'Add';
             addListButton.style.background = '#4CAF50';
             addListButton.style.color = '#FFFFFF';
             addListButton.style.border = 'none';
@@ -971,121 +1016,6 @@
                 MWI_Toolkit_Calculator.updateTargetItem(houseRoomHrid, level);
             });
         }
-        // 渲染物品列表
-        static renderItemsDisplay() {
-            MWI_Toolkit_Calculator.targetItemCategoryMap.forEach((category) => {
-                category.updateDisplayElement();
-            });
-            // 这里只需要新增或更新，删除在targetItems变动时进行处理
-            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
-                const details = MWI_Toolkit_Calculator.targetItemDetailsMap.get(categoryHrid);
-                let lastElement = details.querySelector('summary');
-                let itemCount = 0;
-                [...MWI_Toolkit_Calculator.targetItemsMap.values()]
-                    .sort((a, b) => a.sortIndex - b.sortIndex)
-                    .forEach(targetItem => {
-                    if (targetItem.categoryHrid !== categoryHrid) {
-                        return;
-                    }
-                    if (!targetItem.displayElement) {
-                        MWI_Toolkit_Calculator.createTargetItemDisplayElement(targetItem);
-                        lastElement.insertAdjacentElement('afterend', targetItem.displayElement);
-                    }
-                    targetItem.updateDisplayElement();
-                    lastElement = targetItem.displayElement;
-                    itemCount++;
-                });
-                details.hidden = itemCount === 0;
-            });
-            const targetItemsToCalc = [...MWI_Toolkit_Calculator.targetItemsMap.values()]
-                .sort((a, b) => a.sortIndex - b.sortIndex)
-                .filter(item => item.needCalc && item.count > 0 && (MWI_Toolkit_Calculator.targetItemCategoryMap.get(item.categoryHrid)?.needCalc ?? true))
-                .map(item => ({ itemHrid: item.itemHrid, count: item.count }));
-            // 计算需求物品显示数据
-            // batchCalculateRequiredItems返回的requiredItems已经是有序的
-            const requiredItems = MWI_Toolkit_Calculator.batchCalculateRequiredItems(targetItemsToCalc);
-            const equivalentItems = MWI_Toolkit_Calculator.calculateEquivalentItems(requiredItems);
-            // 移除不存在的物品
-            [...MWI_Toolkit_Calculator.requiredItemsMap.keys()].forEach(itemHrid => {
-                if (!requiredItems.find(ri => ri.itemHrid === itemHrid)) {
-                    MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid)?.removeDisplayElement();
-                    MWI_Toolkit_Calculator.requiredItemsMap.delete(itemHrid);
-                }
-            });
-            requiredItems.forEach(requiredItem => {
-                const equivalentCount = equivalentItems.find(ei => ei.itemHrid === requiredItem.itemHrid)?.count || 0;
-                const item = MWI_Toolkit_Calculator.requiredItemsMap.get(requiredItem.itemHrid);
-                if (item) {
-                    item.count = requiredItem.count;
-                    item.equivalentCount = equivalentCount;
-                }
-                else {
-                    MWI_Toolkit_Calculator.requiredItemsMap.set(requiredItem.itemHrid, new RequiredItem(requiredItem.itemHrid, requiredItem.count, equivalentCount));
-                }
-            });
-            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
-                const shortageDetails = MWI_Toolkit_Calculator.shortageItemDetailsMap.get(categoryHrid);
-                const requiredDetails = MWI_Toolkit_Calculator.requiredItemDetailsMap.get(categoryHrid);
-                let lastShortageElement = shortageDetails.querySelector('summary');
-                let lastRequiredElement = requiredDetails.querySelector('summary');
-                let shortageItemCount = 0;
-                let requiredItemCount = 0;
-                [...MWI_Toolkit_Calculator.requiredItemsMap.values()]
-                    .sort((a, b) => a.sortIndex - b.sortIndex)
-                    .forEach(requiredItem => {
-                    if (requiredItem.categoryHrid !== categoryHrid) {
-                        return;
-                    }
-                    if (!requiredItem.shortageDisplayElement) {
-                        MWI_Toolkit_Calculator.createShortageItemDisplayElement(requiredItem);
-                        lastShortageElement.insertAdjacentElement('afterend', requiredItem.shortageDisplayElement);
-                    }
-                    if (!requiredItem.requiredDisplayElement) {
-                        MWI_Toolkit_Calculator.createRequiredItemDisplayElement(requiredItem);
-                        lastRequiredElement.insertAdjacentElement('afterend', requiredItem.requiredDisplayElement);
-                    }
-                    requiredItem.updateDisplayElement();
-                    lastShortageElement = requiredItem.shortageDisplayElement;
-                    lastRequiredElement = requiredItem.requiredDisplayElement;
-                    shortageItemCount += requiredItem.getShortageCount() > 0 ? 1 : 0;
-                    requiredItemCount++;
-                });
-                shortageDetails.hidden = shortageItemCount === 0;
-                requiredDetails.hidden = requiredItemCount === 0;
-            });
-        }
-        // 创建物品容器（图标+名称）
-        static createItemContainer(displayItem) {
-            const container = document.createElement('div');
-            // container.style.background = '#393a5b';
-            // container.style.border = '1px solid';
-            // container.style.borderRadius = '4px';
-            // container.style.height = '21px';
-            container.style.minWidth = '40px';
-            container.style.alignItems = 'center';
-            container.style.display = 'flex';
-            // 物品图标
-            const iconContainer = document.createElement('div');
-            iconContainer.style.marginLeft = '2px';
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('width', '18px');
-            svg.setAttribute('height', '18px');
-            svg.style.display = 'block';
-            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', displayItem.iconHref);
-            svg.appendChild(use);
-            iconContainer.appendChild(svg);
-            // 物品名称
-            const displayNameDiv = document.createElement('div');
-            displayNameDiv.textContent = displayItem.displayName;
-            displayNameDiv.style.padding = "4px 1px";
-            displayNameDiv.style.marginLeft = '2px';
-            displayNameDiv.style.whiteSpace = 'nowrap';
-            displayNameDiv.style.overflow = 'hidden';
-            container.appendChild(iconContainer);
-            container.appendChild(displayNameDiv);
-            return container;
-        }
         // 创建目标物品元素
         static createTargetItemDisplayElement(targetItem) {
             const { container, itemContainer, rightDiv } = MWI_Toolkit_Calculator.createBaseItemDisplayItem(targetItem);
@@ -1180,25 +1110,29 @@
             const RequiredCountDiv = document.createElement('div');
             RequiredCountDiv.style.padding = '4px 1px';
             RequiredCountDiv.style.marginLeft = '4px';
-            const ownedSpan = document.createElement('span');
-            const equivalentSpan = document.createElement('span');
+            const overflowSpan = document.createElement('span');
             const requiredSpan = document.createElement('span');
-            RequiredCountDiv.appendChild(equivalentSpan);
-            RequiredCountDiv.appendChild(ownedSpan);
-            RequiredCountDiv.appendChild(requiredSpan);
-            rightDiv.appendChild(RequiredCountDiv);
+            requiredSpan.style.display = 'inline-block';
+            requiredSpan.style.textAlign = 'right';
+            requiredSpan.style.width = '45px';
+            const slash = document.createElement('span');
+            slash.textContent = '/';
+            slash.style.margin = '0px 2px';
+            rightDiv.appendChild(overflowSpan);
+            rightDiv.appendChild(slash);
+            rightDiv.appendChild(requiredSpan);
             requiredItem.requiredDisplayElement = container;
-            requiredItem.equivalentSpan = equivalentSpan;
-            requiredItem.ownedSpan = ownedSpan;
+            requiredItem.overflowSpan = overflowSpan;
             requiredItem.requiredSpan = requiredSpan;
-            requiredItem.requiredDiv = RequiredCountDiv;
+            rightDiv.appendChild(RequiredCountDiv);
         }
+        // 创建基础物品显示项（包含图标+名称+右侧区域）
         static createBaseItemDisplayItem(displayItem) {
             const container = document.createElement('div');
             container.className = 'Toolkit_Calculator_Container';
             container.style.border = 'none';
             container.style.borderRadius = '4px';
-            container.style.padding = '1px 4px';
+            container.style.padding = '1px';
             container.style.margin = '2px';
             container.style.display = 'flex';
             container.style.alignItems = 'center';
@@ -1213,8 +1147,36 @@
             container.appendChild(rightDiv);
             return { container, itemContainer, rightDiv };
         }
+        // 创建物品容器（图标+名称）
+        static createItemContainer(displayItem) {
+            const container = document.createElement('div');
+            container.style.minWidth = '40px';
+            container.style.alignItems = 'center';
+            container.style.display = 'flex';
+            // 物品图标
+            const iconContainer = document.createElement('div');
+            iconContainer.style.marginLeft = '2px';
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '18px');
+            svg.setAttribute('height', '18px');
+            svg.style.display = 'block';
+            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', displayItem.iconHref);
+            svg.appendChild(use);
+            iconContainer.appendChild(svg);
+            // 物品名称
+            const displayNameSpan = document.createElement('span');
+            displayNameSpan.textContent = displayItem.displayName;
+            displayNameSpan.style.padding = "4px 1px";
+            displayNameSpan.style.marginLeft = '2px';
+            displayNameSpan.style.whiteSpace = 'nowrap';
+            displayNameSpan.style.overflow = 'hidden';
+            container.appendChild(iconContainer);
+            container.appendChild(displayNameSpan);
+            return container;
+        }
         // 尝试打开动作面板
-        static TryGotoActionDetailByRequiredItem(requiredItem) {
+        static TryGotoActionDetailByRequiredItem(requiredItem, useConfidence = true) {
             const actionHrid = MWI_Toolkit_ActionDetailPlus.getActionHrid(requiredItem.displayName)
                 ?? MWI_Toolkit_ActionDetailPlus.processableActionList[requiredItem.itemHrid]
                 ?? null;
@@ -1223,23 +1185,24 @@
             }
             const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid, true);
             const outputCount = outputItems.find(oi => oi.itemHrid === requiredItem.itemHrid)?.count || 1;
-            if (outputCount === 1 || outputCount === 15) {
-                const actionCount = Math.ceil(requiredItem.getShortageCount() / outputCount);
+            if (!useConfidence || outputCount % 1 === 0) {
+                // 对于不使用置信度或产出为整数的情况，直接计算所需次数
+                const actionCount = Math.ceil(requiredItem.shortageCount / outputCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
             }
             else {
-                const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.getShortageCount());
+                // 对于产出随机的情况，使用99%置信度计算所需次数
+                const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
             }
         }
+        // 计算99%置信度所需尝试次数
         static getRequiredTrials99(mu, target) {
-            // 用拟合公式简化标准差
-            // sigma ≈ 0.2912 * mu^1.032
-            const sigma = 0.2912 * Math.pow(mu, 1.032);
-            const z = 2.326; // 99%置信度
-            // 解一元二次方程 n*mu - z*sigma*sqrt(n) - target = 0
-            // x = sqrt(n) = (z*sigma + sqrt(z^2*sigma^2 + 4*mu*target)) / (2*mu)
-            const x = (z * sigma + Math.sqrt(z * z * sigma * sigma + 4 * mu * target)) / (2 * mu);
+            // 用拟合公式0.3mu简化标准差，2.326为99%置信度的Z值
+            const sigma = 0.3 * mu * 2.326;
+            // 解一元二次方程 n*mu - sigma*sqrt(n) - target = 0
+            // x = sqrt(n) = (sigma + sqrt(sigma^2 + 4*mu*target)) / (2*mu)
+            const x = (sigma + Math.sqrt(sigma * sigma + 4 * mu * target)) / (2 * mu);
             return Math.ceil(x * x);
         }
     }
@@ -1441,12 +1404,12 @@
             const actionType = actionDetail?.type?.split('/').pop() || '';
             // 仅支持八种常规类型
             if (!actionDetail || !actionType || !['milking', 'foraging', 'woodcutting', 'cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing'].includes(actionType)) {
-                console.warn('[MWI_Toolkit] 无法获取动作详情' + MWI_Toolkit_ActionDetailPlus.getActionName());
-                return { upgradeItemHrid: null, inputItems: null, outputItems: null };
+                console.warn('[MWI_Toolkit] 无法获取动作详情' + actionHrid);
+                return { upgradeItemHrid: null, inputItems: [], outputItems: [] };
             }
             // console.log('MWI_Toolkit_ActionDetailPlus: 获取到动作详情', actionDetail);
             const upgradeItemHrid = actionDetail.upgradeItemHrid;
-            const inputItems = actionDetail.inputItems ? JSON.parse(JSON.stringify(actionDetail.inputItems)) : null;
+            const inputItems = actionDetail.inputItems ? JSON.parse(JSON.stringify(actionDetail.inputItems)) : Array();
             const outputItems = actionDetail.outputItems ? JSON.parse(JSON.stringify(actionDetail.outputItems)) : Array();
             const drinkSlots = MWI_Toolkit_ActionDetailPlus.getActionTypeDrinkSlots(actionType);
             const drinkConcentration = MWI_Toolkit_ActionDetailPlus.getDrinkConcentration();
@@ -1710,8 +1673,9 @@
             if (!Number.isFinite(num)) {
                 return '0';
             }
-            // 确保非负数
-            const normalizedNum = Math.max(0, num);
+            // // 确保非负数
+            // const normalizedNum = Math.max(0, num);
+            const normalizedNum = num;
             // 小于1000：保留1位小数，但如果小数为0则只显示整数
             if (normalizedNum <= 999) {
                 const fixed = normalizedNum.toFixed(1);
@@ -1810,6 +1774,9 @@
      * 提供游戏内物品和其他资源的多语言名称查询功能
      */
     class MWI_Toolkit_I18n {
+        static getGameLanguage() {
+            return MWI_Toolkit.gameObject?.language || 'zh';
+        }
         /**
          * 获取物品的本地化名称
          * @param itemHrid 物品的唯一标识符
@@ -1830,12 +1797,12 @@
             }
             // 特例自定义itemCategory名称
             if (hrid === '/item_categories/house_rooms') {
-                return MWI_Toolkit?.getGameLanguage() === 'zh' ? '房屋' : 'House';
+                return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '房屋' : 'House';
             }
             if (hrid === '/item_categories/materials') {
-                return MWI_Toolkit?.getGameLanguage() === 'zh' ? '材料' : 'Materials';
+                return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '材料' : 'Materials';
             }
-            return MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit?.getGameLanguage()]?.translation?.[category]?.[hrid] || hrid;
+            return MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit_I18n?.getGameLanguage()]?.translation?.[category]?.[hrid] || hrid;
         }
         /**
          * 根据物品名称反查HRID
@@ -1855,7 +1822,7 @@
             if (!name || !category) {
                 return null;
             }
-            return Object.entries(MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit?.getGameLanguage()]?.translation?.[category] || {})
+            return Object.entries(MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit_I18n?.getGameLanguage()]?.translation?.[category] || {})
                 .find(([, v]) => (v || '').toLowerCase() === name.toLowerCase().trim())?.[0] ?? null;
         }
     }
@@ -1875,6 +1842,17 @@
          */
         static getCount(itemHrid, enhancementLevel = 0) {
             return MWI_Toolkit_ItemsMap.map.get(itemHrid)?.get(enhancementLevel) ?? 0;
+        }
+        /**
+         * 获取当前库存的物品映射表（仅基础等级数量）
+         * @returns 当前库存的物品映射表（仅基础等级数量）
+         */
+        static getInventoryMap() {
+            const inventoryMap = new Map();
+            MWI_Toolkit_ItemsMap.map.forEach((enhancementMap, itemHrid) => {
+                inventoryMap.set(itemHrid, enhancementMap.get(0) || 0);
+            });
+            return inventoryMap;
         }
         /**
          * 查询指定物品的最大强化等级
@@ -1936,9 +1914,6 @@
      * 使用单例模式确保全局只有一个实例
      */
     class MWI_Toolkit {
-        static getGameLanguage() {
-            return MWI_Toolkit.gameObject?.language || 'zh';
-        }
         /**
          * 启动工具包
          * 等待游戏页面加载完成后进行初始化

@@ -48,8 +48,9 @@ cmd /c npm run build
    - 按住`Ctrl`（MAC中为`Command`）点击缺口数字可以跳转到对应的动作面板并填写所需的动作次数，对于产出数量随机的动作会额外增加一定的动作数量，保证行动队列结束后尽可能满足需求
 
 4. **计算详情查看**
-   - 右侧详情显示面板显示等效数量+库存数量/需求数量的格式
-   - 等效数量的概念，即为当拥有100`神圣奶酪`时，会视为拥有足够制造这些奶酪的等效`神圣牛奶`（具体数量取决于各种buff效果），同样，当你输入100需求时，也视为存在制造这些奶酪所需的牛奶
+   - 右侧详情显示面板显示 (净值/需求) 的格式
+   - 净值为库存数量扣除计划消耗量后剩余的数量，当存在缺口时显示为负值
+   - 需求为从零完成需求列表所需的物品数量
    - 通过详情面板可以观察每个项目的具体进度情况，或者在存在社区buff时确认库存相对短缺的资源类型，用于规划行动队列
 
 # English Description
@@ -92,7 +93,8 @@ cmd /c npm run build
    - Items that meet requirements are automatically hidden to keep the interface clean
    - Hold `Ctrl` (on MAC use `Command`) and click the shortages number to jump to the corresponding action panel and fill in the required action count. For actions with random output, extra actions are added to ensure requirements are met after the queue ends
 
-4. **Calculation Status View**
-   - The right Status panel shows equivalent quantity + inventory/requirement format
-   - Equivalent quantity means, for example, if you have 100 `Holy Cheese`, it is considered as having enough equivalent `Holy Milk` to make those cheeses (actual amount depends on buffs). Similarly, entering a requirement of 100 is treated as having the milk needed to make those cheeses
+4. **Calculation Details View**
+   - The right Status panel displays Net/Required format for each item
+   - Net means the remaining quantity after subtracting planned consumption from inventory; if there is a shortage, it will be negative
+   - Required means the total amount needed to fulfill the requirement list from zero
    - The Status panel lets you observe the progress of each item, or check which resources are relatively short when community buffs are present, to help plan your action queue
