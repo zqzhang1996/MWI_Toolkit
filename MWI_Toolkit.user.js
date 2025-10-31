@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.1.0
+// @version      5.1.1
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -2079,10 +2079,10 @@
     MWI_Toolkit.initialized = false;
     //#endregion
     // 防止重复加载
-    if (window.MWI_Toolkit_Started) {
+    if (unsafeWindow.MWI_Toolkit_Started) {
         return;
     }
-    window.MWI_Toolkit_Started = true;
+    unsafeWindow.MWI_Toolkit_Started = true;
     // 启动工具包
     MWI_Toolkit.start();
 })();

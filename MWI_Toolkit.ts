@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.1.0
+// @version      5.1.1
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -20,6 +20,8 @@ declare const LZString: {
 
 declare function GM_setValue(key: string, value: any): void;
 declare function GM_getValue(key: string, defaultValue?: any): any;
+
+declare const unsafeWindow: any;
 
 /**
  * 支持的语言类型
@@ -2645,8 +2647,8 @@ interface ItemsUpdatedData {
     //#endregion
 
     // 防止重复加载
-    if ((window as any).MWI_Toolkit_Started) { return; }
-    (window as any).MWI_Toolkit_Started = true;
+    if (unsafeWindow.MWI_Toolkit_Started) { return; }
+    unsafeWindow.MWI_Toolkit_Started = true;
 
     // 启动工具包
     MWI_Toolkit.start();
