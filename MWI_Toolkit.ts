@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.1.1
+// @version      5.2.0
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -18,22 +18,13 @@ declare const LZString: {
     decompressFromUTF16(compressed: string): string;
 };
 
+declare const unsafeWindow: any;
+
 declare function GM_setValue(key: string, value: any): void;
 declare function GM_getValue(key: string, defaultValue?: any): any;
 
-declare const unsafeWindow: any;
-
-/**
- * 支持的语言类型
- * zh: 简体中文
- * en: 英语
- */
 type I18nLanguage = 'zh' | 'en';
 
-/**
- * 国际化资源分类类型
- * 用于指定要查询的资源类型
- */
 type I18nCategory =
     'actionNames' |
     'characterManagement' |
@@ -41,9 +32,6 @@ type I18nCategory =
     'itemCategoryNames' |
     'itemNames';
 
-/**
- * 国际化配置选项
- */
 interface I18nOptions {
     resources: {
         [lang in I18nLanguage]: {
@@ -56,14 +44,10 @@ interface I18nOptions {
     };
 }
 
-/**
- * 游戏对象结构（从React组件实例中获取）
- */
 interface GameObject {
     handleGoToAction(actionHrid: string, actionCount: number): void;
     language: I18nLanguage;
     props: {
-        /** 国际化配置 */
         i18n: {
             options: I18nOptions;
         };
@@ -90,9 +74,6 @@ interface GameObject {
     }
 }
 
-/**
- * 初始化客户端数据
- */
 interface InitClientData {
     actionDetailMap: {
         [actionHrid: string]: ActionDetail;
@@ -109,9 +90,6 @@ interface InitClientData {
     enhancementLevelTotalBonusMultiplierTable: Array<number>
 }
 
-/**
- * 物品详细信息
- */
 interface ItemDetail {
     categoryHrid: string;
     equipmentDetail?: EquipmentDetail;
@@ -139,9 +117,6 @@ interface EquipmentDetail {
     }
 }
 
-/**
- * 房屋详细信息
- */
 interface HouseRoomDetail {
     hrid: string;
     skillHrid: string;
@@ -159,121 +134,62 @@ interface ShopItemDetail {
     sortIndex: number;
 }
 
-/**
- * 物品及数量结构
- * 用于表示配方输入/输出、物品消耗等场景
- */
 interface ItemWithCount {
-    /** 物品的唯一标识符 */
     itemHrid: string;
-    /** 物品数量 */
     count: number;
-    /** 最小掉落数量 */
     minCount?: number;
-    /** 最大掉落数量 */
     maxCount?: number;
 }
 
-/**
- * 物品掉落配置结构
- * 用于表示掉落表、奖励表等场景
- */
 interface ItemDrop {
-    /** 物品的唯一标识符 */
     itemHrid: string;
-    /** 基础掉落率 */
     dropRate: number;
-    /** 每难度等级增加的掉落率（可选） */
     dropRatePerDifficultyTier?: number;
-    /** 最小掉落数量 */
     minCount: number;
-    /** 最大掉落数量 */
     maxCount: number;
 }
 
-/**
- * 行动详细信息结构
- * 包含游戏中各种行动（采集、制造、战斗等）的完整配置信息
- */
 interface ActionDetail {
-    /** 行动的唯一标识符 */
     hrid: string;
-    /** 行动功能类型 */
     function: string;
-    /** 行动类型 */
     type: string;
-    /** 行动分类 */
     category: string;
-    /** 行动名称 */
     name: string;
-    /** 最大难度等级 */
     maxDifficulty: number;
-    /** 等级需求 */
     levelRequirement: {
-        /** 所需技能的HRID */
         skillHrid: string;
-        /** 所需技能等级 */
         level: number;
     }
-    /** 基础耗时（纳秒，例如 16000000000 = 16秒） */
     baseTimeCost: number;
-    /** 经验获取配置 */
     experienceGain: {
-        /** 获取经验的技能HRID */
         skillHrid: string;
-        /** 经验值 */
         value: number;
     }
-    /** 普通掉落表（null表示无掉落） */
     dropTable: null | Array<ItemDrop>;
-    /** 精华掉落表（null表示无精华掉落） */
     essenceDropTable: null | Array<ItemDrop>;
-    /** 稀有掉落表（null表示无稀有掉落） */
     rareDropTable: null | Array<ItemDrop>;
-    /** 升级所需物品的HRID（空字符串表示无） */
     upgradeItemHrid: string;
-    /** 是否保留所有强化等级 */
     retainAllEnhancement: boolean;
-    /** 输入物品列表（null表示无输入要求） */
     inputItems: null | Array<ItemWithCount>;
-    /** 输出物品列表（null表示无输出） */
     outputItems: null | Array<ItemWithCount>;
-    /** 战斗区域信息配置（null表示非战斗） */
     combatZoneInfo: null | CombatZoneInfo;
 }
 
-/**
- * 战斗区域信息结构
- * 包含普通战斗区域和地下城两种类型的配置
- */
 interface CombatZoneInfo {
-    /** 是否为地下城 */
     isDungeon: boolean;
-    /** 非地下城战斗配置 */
     fightInfo: {
-        /** 随机刷怪配置 */
         randomSpawnInfo: {
-            /** 最大刷怪数量 */
             maxSpawnCount: number;
-            /** 最大总强度 */
             maxTotalStrength: number;
-            /** 刷怪列表（null表示无随机刷怪） */
             spawns: null | Array<MonsterSpawn>;
         };
-        /** Boss刷怪配置（null表示无Boss） */
         bossSpawns: null | Array<MonsterSpawn>;
-        /** 每个Boss需要的战斗次数 */
         battlesPerBoss: number;
     }
-    /** 地下城战斗配置 */
     dungeonInfo: {
-        /** 进入地下城所需钥匙的物品HRID */
         keyItemHrid: string;
-        /** 奖励掉落表（null表示无奖励） */
         rewardDropTable: null | Array<ItemDrop>;
-        /** 最大波数（0表示非地下城） */
         maxWaves: number;
-        /** 按波数划分的随机刷怪配置映射（null表示无配置） */
         randomSpawnInfoMap: null | {
             [wave: string]: {
                 maxSpawnCount: number;
@@ -281,76 +197,42 @@ interface CombatZoneInfo {
                 spawns: Array<MonsterSpawn>;
             };
         };
-        /** 按波数划分的固定刷怪配置映射（null表示无配置） */
         fixedSpawnsMap: null | {
             [wave: string]: Array<MonsterSpawn>;
         };
     }
-    /** 最大队伍人数 */
     maxPartySize: number;
-    /** Buff效果（当前为null） */
     buffs: null;
-    /** 排序索引 */
     sortIndex: number;
 }
 
-/**
- * 怪物刷怪配置结构
- */
 interface MonsterSpawn {
-    /** 怪物的唯一标识符 */
     combatMonsterHrid: string;
-    /** 难度等级 */
     difficultyTier: number;
-    /** 刷怪概率 */
     rate: number;
-    /** 强度值 */
     strength: number;
 }
 
-/**
- * 角色物品数据结构
- */
 interface CharacterItem {
-    /** 物品记录的唯一ID */
     id: number;
-    /** 角色ID */
     characterID: number;
-    /** 物品所在位置的HRID（如背包、装备栏等） */
     itemLocationHrid: string;
-    /** 物品的唯一标识符 */
     itemHrid: string;
-    /** 物品的强化等级 */
     enhancementLevel: number;
-    /** 物品数量 */
     count: number;
-    /** 离线时的物品数量 */
     offlineCount: number;
-    /** 物品的哈希值，用于唯一标识 */
     hash: string;
-    /** 创建时间（ISO 8601格式） */
     createdAt: string;
-    /** 最后更新时间（ISO 8601格式） */
     updatedAt: string;
 }
 
-/**
- * 包含角色初始化数据的WebSocket消息
- */
 interface InitCharacterData {
-    /** 消息类型标识 */
     type: string;
-    /** 角色拥有的所有物品 */
     characterItems: CharacterItem[];
 }
 
-/**
- * 包含物品变更数据的WebSocket消息
- */
 interface ItemsUpdatedData {
-    /** 消息类型标识 */
     type: string;
-    /** 变更后的物品数据 */
     endCharacterItems: CharacterItem[];
 }
 
@@ -394,7 +276,6 @@ interface ItemsUpdatedData {
             this.iconHref = MWI_Toolkit_Utils.getIconHrefByItemHrid(this.itemHrid);
             this.sortIndex = MWI_Toolkit_Utils.getSortIndexByItemHrid(this.itemHrid);
         }
-
         getOwnedCount(): number {
             return MWI_Toolkit_ItemsMap.getCount(this.itemHrid);
         }
@@ -449,7 +330,6 @@ interface ItemsUpdatedData {
             this.iconHref = MWI_Toolkit_Utils.getIconHrefByHouseRoomHrid(this.itemHrid);
             this.sortIndex = MWI_Toolkit_Utils.getSortIndexByHouseRoomHrid(this.itemHrid);
         }
-
         getOwnedCount(): number {
             return MWI_Toolkit.gameObject?.state?.characterHouseRoomDict?.[this.itemHrid]?.level || 0;
         }
@@ -469,12 +349,21 @@ interface ItemsUpdatedData {
         shortageSpan: HTMLSpanElement = null;
         overflowSpan: HTMLSpanElement = null;
         requiredSpan: HTMLSpanElement = null;
+
         updateDisplayElement() {
-            const ownedCount = this.getOwnedCount();
             if (this.shortageSpan) {
                 const newText = MWI_Toolkit_Utils.formatNumber(this.shortageCount);
                 if (this.shortageSpan.textContent !== newText) { this.shortageSpan.textContent = newText; }
-                this.shortageDisplayElement.style.display = this.shortageCount > 0 ? 'flex' : 'none';
+                if (this.shortageCount > 0) {
+                    let inputShortageCount = 0;
+                    MWI_Toolkit_Calculator.tryGetRecipe(this.itemHrid)?.inputs?.forEach(input => {
+                        inputShortageCount += MWI_Toolkit_Calculator.requiredItemsMap.get(input.itemHrid)?.shortageCount || 0;
+                    });
+                    this.shortageDisplayElement.style.background = (inputShortageCount === 0 ? '#147147' : '');
+                    this.shortageDisplayElement.style.display = 'flex';
+                } else {
+                    this.shortageDisplayElement.style.display = 'none';
+                }
             }
             if (this.overflowSpan) {
                 if (this.shortageCount > 0) {
@@ -654,92 +543,6 @@ interface ItemsUpdatedData {
                 MWI_Toolkit_Calculator.renderItemsDisplay();
                 MWI_Toolkit_Calculator.renderTimeout = null;
             }, 300); // 300ms 防抖延迟
-        }
-
-        // 渲染物品列表
-        static renderItemsDisplay() {
-            MWI_Toolkit_Calculator.targetItemCategoryMap.forEach((category) => {
-                category.updateDisplayElement();
-            });
-
-            // 这里只需要新增或更新，删除在targetItems变动时进行处理
-            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
-                const details = MWI_Toolkit_Calculator.targetItemDetailsMap.get(categoryHrid);
-                let lastElement = details.querySelector('summary');
-                let itemCount = 0;
-                [...MWI_Toolkit_Calculator.targetItemsMap.values()]
-                    .sort((a, b) => a.sortIndex - b.sortIndex)
-                    .forEach(targetItem => {
-                        if (targetItem.categoryHrid !== categoryHrid) { return; }
-                        if (!targetItem.displayElement) {
-                            MWI_Toolkit_Calculator.createTargetItemDisplayElement(targetItem);
-                            lastElement.insertAdjacentElement('afterend', targetItem.displayElement);
-                        }
-                        targetItem.updateDisplayElement();
-                        lastElement = targetItem.displayElement;
-                        itemCount++;
-                    });
-                details.hidden = itemCount === 0;
-            });
-
-            const inventoryMap = MWI_Toolkit_ItemsMap.getInventoryMap();
-            const totalNeeds = MWI_Toolkit_Calculator.calculateAllRequiredItems(new Map());
-            const remainNeeds = MWI_Toolkit_Calculator.calculateAllRequiredItems(inventoryMap);
-
-            // 移除不存在的物品
-            [...MWI_Toolkit_Calculator.requiredItemsMap.keys()].forEach(itemHrid => {
-                if (!totalNeeds.has(itemHrid)) {
-                    MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid)?.removeDisplayElement();
-                    MWI_Toolkit_Calculator.requiredItemsMap.delete(itemHrid);
-                }
-            });
-
-            [...totalNeeds.keys()].forEach(itemHrid => {
-                const item = MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid);
-                if (item) {
-                    item.count = totalNeeds.get(itemHrid) || 0;
-                    item.shortageCount = remainNeeds.get(itemHrid) || 0;
-                    item.overflowCount = inventoryMap.get(itemHrid) || 0;
-                }
-                else {
-                    MWI_Toolkit_Calculator.requiredItemsMap.set(itemHrid,
-                        new RequiredItem(
-                            itemHrid,
-                            totalNeeds.get(itemHrid) || 0,
-                            remainNeeds.get(itemHrid) || 0,
-                            inventoryMap.get(itemHrid) || 0
-                        ));
-                }
-            });
-
-            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
-                const shortageDetails = MWI_Toolkit_Calculator.shortageItemDetailsMap.get(categoryHrid);
-                const requiredDetails = MWI_Toolkit_Calculator.requiredItemDetailsMap.get(categoryHrid);
-                let lastShortageElement = shortageDetails.querySelector('summary');
-                let lastRequiredElement = requiredDetails.querySelector('summary');
-                let shortageItemCount = 0;
-                let requiredItemCount = 0;
-                [...MWI_Toolkit_Calculator.requiredItemsMap.values()]
-                    .sort((a, b) => a.sortIndex - b.sortIndex)
-                    .forEach(requiredItem => {
-                        if (requiredItem.categoryHrid !== categoryHrid) { return; }
-                        if (!requiredItem.shortageDisplayElement) {
-                            MWI_Toolkit_Calculator.createShortageItemDisplayElement(requiredItem);
-                            lastShortageElement.insertAdjacentElement('afterend', requiredItem.shortageDisplayElement);
-                        }
-                        if (!requiredItem.requiredDisplayElement) {
-                            MWI_Toolkit_Calculator.createRequiredItemDisplayElement(requiredItem);
-                            lastRequiredElement.insertAdjacentElement('afterend', requiredItem.requiredDisplayElement);
-                        }
-                        requiredItem.updateDisplayElement();
-                        lastShortageElement = requiredItem.shortageDisplayElement;
-                        lastRequiredElement = requiredItem.requiredDisplayElement;
-                        shortageItemCount += requiredItem.shortageCount > 0 ? 1 : 0;
-                        requiredItemCount++;
-                    });
-                shortageDetails.hidden = shortageItemCount === 0;
-                requiredDetails.hidden = requiredItemCount === 0;
-            });
         }
 
         // 获取物品配方
@@ -1491,6 +1294,92 @@ interface ItemsUpdatedData {
             });
         }
 
+        // 渲染物品列表
+        static renderItemsDisplay() {
+            MWI_Toolkit_Calculator.targetItemCategoryMap.forEach((category) => {
+                category.updateDisplayElement();
+            });
+
+            // 这里只需要新增或更新，删除在targetItems变动时进行处理
+            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
+                const details = MWI_Toolkit_Calculator.targetItemDetailsMap.get(categoryHrid);
+                let lastElement = details.querySelector('summary');
+                let itemCount = 0;
+                [...MWI_Toolkit_Calculator.targetItemsMap.values()]
+                    .sort((a, b) => a.sortIndex - b.sortIndex)
+                    .forEach(targetItem => {
+                        if (targetItem.categoryHrid !== categoryHrid) { return; }
+                        if (!targetItem.displayElement) {
+                            MWI_Toolkit_Calculator.createTargetItemDisplayElement(targetItem);
+                            lastElement.insertAdjacentElement('afterend', targetItem.displayElement);
+                        }
+                        targetItem.updateDisplayElement();
+                        lastElement = targetItem.displayElement;
+                        itemCount++;
+                    });
+                details.hidden = itemCount === 0;
+            });
+
+            const inventoryMap = MWI_Toolkit_ItemsMap.getInventoryMap();
+            const totalNeeds = MWI_Toolkit_Calculator.calculateAllRequiredItems(new Map());
+            const remainNeeds = MWI_Toolkit_Calculator.calculateAllRequiredItems(inventoryMap);
+
+            // 移除不存在的物品
+            [...MWI_Toolkit_Calculator.requiredItemsMap.keys()].forEach(itemHrid => {
+                if (!totalNeeds.has(itemHrid)) {
+                    MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid)?.removeDisplayElement();
+                    MWI_Toolkit_Calculator.requiredItemsMap.delete(itemHrid);
+                }
+            });
+
+            [...totalNeeds.keys()].forEach(itemHrid => {
+                const item = MWI_Toolkit_Calculator.requiredItemsMap.get(itemHrid);
+                if (item) {
+                    item.count = totalNeeds.get(itemHrid) || 0;
+                    item.shortageCount = remainNeeds.get(itemHrid) || 0;
+                    item.overflowCount = inventoryMap.get(itemHrid) || 0;
+                }
+                else {
+                    MWI_Toolkit_Calculator.requiredItemsMap.set(itemHrid,
+                        new RequiredItem(
+                            itemHrid,
+                            totalNeeds.get(itemHrid) || 0,
+                            remainNeeds.get(itemHrid) || 0,
+                            inventoryMap.get(itemHrid) || 0
+                        ));
+                }
+            });
+
+            MWI_Toolkit_Calculator.itemCategoryList.forEach(categoryHrid => {
+                const shortageDetails = MWI_Toolkit_Calculator.shortageItemDetailsMap.get(categoryHrid);
+                const requiredDetails = MWI_Toolkit_Calculator.requiredItemDetailsMap.get(categoryHrid);
+                let lastShortageElement = shortageDetails.querySelector('summary');
+                let lastRequiredElement = requiredDetails.querySelector('summary');
+                let shortageItemCount = 0;
+                let requiredItemCount = 0;
+                [...MWI_Toolkit_Calculator.requiredItemsMap.values()]
+                    .sort((a, b) => a.sortIndex - b.sortIndex)
+                    .forEach(requiredItem => {
+                        if (requiredItem.categoryHrid !== categoryHrid) { return; }
+                        if (!requiredItem.shortageDisplayElement) {
+                            MWI_Toolkit_Calculator.createShortageItemDisplayElement(requiredItem);
+                            lastShortageElement.insertAdjacentElement('afterend', requiredItem.shortageDisplayElement);
+                        }
+                        if (!requiredItem.requiredDisplayElement) {
+                            MWI_Toolkit_Calculator.createRequiredItemDisplayElement(requiredItem);
+                            lastRequiredElement.insertAdjacentElement('afterend', requiredItem.requiredDisplayElement);
+                        }
+                        requiredItem.updateDisplayElement();
+                        lastShortageElement = requiredItem.shortageDisplayElement;
+                        lastRequiredElement = requiredItem.requiredDisplayElement;
+                        shortageItemCount += requiredItem.shortageCount > 0 ? 1 : 0;
+                        requiredItemCount++;
+                    });
+                shortageDetails.hidden = shortageItemCount === 0;
+                requiredDetails.hidden = requiredItemCount === 0;
+            });
+        }
+
         // 创建目标物品元素
         static createTargetItemDisplayElement(targetItem: TargetItem): void {
             const { container, itemContainer, rightDiv } = MWI_Toolkit_Calculator.createBaseItemDisplayItem(targetItem);
@@ -1729,9 +1618,6 @@ interface ItemsUpdatedData {
 
     class MWI_Toolkit_ActionDetailPlus {
 
-        /**
-         * 可加工的动作映射
-         */
         static processableActionList = {
             "/items/milk": "/actions/milking/cow",
             "/items/verdant_milk": "/actions/milking/verdant_cow",
@@ -1754,9 +1640,6 @@ interface ItemsUpdatedData {
             "/items/radiant_fiber": "/actions/foraging/radiant_fiber"
         };
 
-        /**
-         * 可加工的物品映射
-         */
         static processableItemList = {
             "/items/milk": "/items/cheese",
             "/items/verdant_milk": "/items/verdant_cheese",
@@ -1779,9 +1662,7 @@ interface ItemsUpdatedData {
             "/items/radiant_fiber": "/items/radiant_fabric"
         };
 
-        /**
-         * 监听页面变化
-         */
+        // 初始化监听器
         static initialize() {
             let lastPanel = null;
             const observer = new MutationObserver(() => {
@@ -1796,9 +1677,7 @@ interface ItemsUpdatedData {
             observer.observe(document.body, { childList: true, subtree: true });
         }
 
-        /**
-         * 增强技能行动详情面板
-         */
+        // 增强技能动作详情面板
         static enhanceSkillActionDetail() {
             const actionName = MWI_Toolkit_ActionDetailPlus.getActionName();
             const actionHrid = MWI_Toolkit_ActionDetailPlus.getActionHrid(actionName);
@@ -1959,6 +1838,7 @@ interface ItemsUpdatedData {
             }, 20);
         }
 
+        // 计算动作详情
         static calculateActionDetail(actionHrid: string, ignoreProcessingTea: boolean = false): { upgradeItemHrid: string | null; inputItems: Array<ItemWithCount>; outputItems: Array<ItemWithCount> } {
             const actionDetail = MWI_Toolkit_ActionDetailPlus.getActionDetail(actionHrid);
             const actionType = actionDetail?.type?.split('/').pop() || '';
@@ -2010,11 +1890,7 @@ interface ItemsUpdatedData {
             return { upgradeItemHrid, inputItems, outputItems };
         }
 
-        /**
-         * 创建output数量栏，返回 [{component, input}]
-         * @param itemHrid 物品的唯一标识符
-         * @returns { component: HTMLDivElement; input: HTMLInputElement } | null
-         */
+        // 创建产出物品输入组件
         static createOutputItemComponent(itemHrid: string): { component: HTMLDivElement; input: HTMLInputElement } | null {
             const origComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]') as HTMLDivElement;
             if (!origComponent) return null;
@@ -2095,19 +1971,23 @@ interface ItemsUpdatedData {
             return { component, input };
         }
 
+        // 获取当前动作名称
         static getActionName(): string {
             const actionNameDiv = document.querySelector('[class^="SkillActionDetail_name"]') as HTMLDivElement;
             return actionNameDiv ? actionNameDiv.textContent : '';
         }
 
+        // 获取动作HRID
         static getActionHrid(actionName: string): string {
             return MWI_Toolkit_I18n.getHridByName(actionName, 'actionNames');
         }
 
+        // 获取动作详情
         static getActionDetail(actionHrid: string): ActionDetail | null {
             return MWI_Toolkit.initClientData?.actionDetailMap?.[`${actionHrid}`];
         }
 
+        // 获取动作类型对应的饮品栏物品列表
         static getActionTypeDrinkSlots(actionType: string): Array<string> {
             if (!actionType) { return []; }
             const drinkSlots: Array<string> = [];
@@ -2129,6 +2009,7 @@ interface ItemsUpdatedData {
             return drinkSlots;
         }
 
+        // 获取饮品浓缩倍率
         static getDrinkConcentration(): number {
             const enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/guzzling_pouch");
             if (enhancementLevel != -1) {
@@ -2140,6 +2021,7 @@ interface ItemsUpdatedData {
             return 1;
         }
 
+        // 获取装备采集数量加成
         static getEquipmentGatheringBuff(): number {
             let equipmentGatheringBuff = 0;
             const philosophers_earrings_enhancementLevel = MWI_Toolkit_ItemsMap.getMaxEnhancementLevel("/items/philosophers_earrings");
@@ -2173,6 +2055,7 @@ interface ItemsUpdatedData {
             return equipmentGatheringBuff;
         }
 
+        // 获取社区采集数量加成
         static getCommunityGatheringBuff(): number {
             const communityBuffs = MWI_Toolkit.gameObject?.state?.communityBuffs || [];
             for (const buff of communityBuffs) {
@@ -2188,15 +2071,8 @@ interface ItemsUpdatedData {
 
     //#region Utils
 
-    /**
-     * 静态工具类
-     */
     class MWI_Toolkit_Utils {
-        /**
-         * 格式化数字为字符串
-         * @param num 要格式化的数字
-         * @returns 格式化后的字符串
-         */
+        // 格式化数字
         static formatNumber(num: number): string {
             // 类型和有效性检查
             if (!Number.isFinite(num)) {
@@ -2237,65 +2113,37 @@ interface ItemsUpdatedData {
             return 'NaN';
         }
 
-        /**
-         * 获取物品排序索引
-         * @param hrid 物品的唯一标识符
-         * @returns 物品的排序索引
-         */
+        // 获取物品排序索引
         static getSortIndexByItemHrid(hrid: string): number {
             return (MWI_Toolkit.initClientData?.itemDetailMap?.[hrid]?.sortIndex || 9999);
         }
 
-        /**
-         * 获取物品排序索引
-         * @param hrid 物品的唯一标识符
-         * @returns 物品的排序索引
-         */
+        // 获取技能排序索引
         static getSortIndexByHouseRoomHrid(hrid: string): number {
             return (MWI_Toolkit.initClientData?.houseRoomDetailMap?.[hrid]?.sortIndex || 0) - 9999;
         }
 
-        /**
-         * 获取物品图标的链接
-         * @param itemHrid 物品的唯一标识符
-         * @returns 物品图标的链接
-         */
+        // 获取物品图标链接
         static getIconHrefByItemHrid(itemHrid: string): string {
             return '/static/media/items_sprite.d4d08849.svg#' + (itemHrid.split('/').pop() || '');
         }
 
-        /**
-         * 获取技能图标的链接
-         * @param skillHrid 技能的唯一标识符
-         * @returns 技能图标的链接
-         */
+        // 获取技能图标链接
         static getIconHrefBySkillHrid(skillHrid: string): string {
             return '/static/media/skills_sprite.3bb4d936.svg#' + (skillHrid.split('/').pop() || '');
         }
 
-        /**
-         * 获取房屋图标的链接
-         * @param houseRoomHrid 房屋的唯一标识符
-         * @returns 房屋图标的链接
-         */
+        // 获取房屋图标链接
         static getIconHrefByHouseRoomHrid(houseRoomHrid: string): string {
             return MWI_Toolkit_Utils.getIconHrefBySkillHrid(MWI_Toolkit.initClientData?.houseRoomDetailMap?.[houseRoomHrid]?.skillHrid || houseRoomHrid);
         }
 
-        /**
-         * 获取杂项图标的链接
-         * @param hrid 杂项的唯一标识符
-         * @returns 杂项图标的链接
-         */
+        // 获取杂项图标链接
         static getIconHrefByMiscHrid(hrid: string): string {
             return '/static/media/misc_sprite.6fa5e97c.svg#' + (hrid.split('/').pop() || '');
         }
 
-        /**
-         * 触发React输入框的change事件
-         * 通过操作React内部的_valueTracker来触发React的事件系统
-         * @param inputElem HTML输入元素
-         */
+        // 触发React对input元素的变更检测
         static reactInputTriggerHack(inputElem: HTMLInputElement): void {
             const lastValue = inputElem.value;
             const event = new Event("input", { bubbles: true });
@@ -2318,30 +2166,18 @@ interface ItemsUpdatedData {
 
     //#region I18n
 
-    /**
-     * 国际化静态工具类实现
-     * 提供游戏内物品和其他资源的多语言名称查询功能
-     */
     class MWI_Toolkit_I18n {
-
+        // 获取当前游戏语言
         static getGameLanguage(): I18nLanguage {
             return MWI_Toolkit.gameObject?.language || 'zh';
         }
-        /**
-         * 获取物品的本地化名称
-         * @param itemHrid 物品的唯一标识符
-         * @returns 本地化后的物品名称，如果找不到则返回原始HRID
-         */
+
+        // 获取物品名称
         static getItemName(itemHrid: string): string {
             return MWI_Toolkit_I18n.getName(itemHrid, "itemNames");
         }
 
-        /**
-         * 获取资源的本地化名称（通用方法）
-         * @param hrid 资源的唯一标识符
-         * @param category 资源分类（houseRoomNames, actionNames, itemNames）
-         * @returns 本地化后的名称，如果找不到则返回原始HRID
-         */
+        // 获取名称
         static getName(hrid: string, category: I18nCategory): string {
             if (!hrid || !category) { return hrid; }
             // 特例自定义itemCategory名称
@@ -2354,21 +2190,12 @@ interface ItemsUpdatedData {
             return MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit_I18n?.getGameLanguage()]?.translation?.[category]?.[hrid] || hrid;
         }
 
-        /**
-         * 根据物品名称反查HRID
-         * @param itemName 物品的本地化名称
-         * @returns 对应的物品HRID，如果找不到则返回null
-         */
+        // 通过物品名称获取物品HRID
         static getItemHridByName(itemName: string): string | null {
             return MWI_Toolkit_I18n.getHridByName(itemName, "itemNames");
         }
 
-        /**
-         * 根据名称反查HRID（通用方法）
-         * @param name 资源的本地化名称
-         * @param category 资源分类（houseRoomNames, actionNames, itemNames）
-         * @returns 对应的HRID，如果找不到则返回null
-         */
+        // 通过名称获取HRID
         static getHridByName(name: string, category: I18nCategory): string | null {
             if (!name || !category) { return null; }
             return Object.entries(MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit_I18n?.getGameLanguage()]?.translation?.[category] || {})
@@ -2380,31 +2207,17 @@ interface ItemsUpdatedData {
 
     //#region ItemsMap
 
-    /**
-     * 物品映射管理类实现
-     * 使用二级Map结构存储物品数据：itemHrid -> enhancementLevel -> count
-     * 提供物品查询和事件监听功能
-     */
     class MWI_Toolkit_ItemsMap {
         /** 物品数据映射表：itemHrid -> (enhancementLevel -> count) */
         static map: Map<string, Map<number, number>> = new Map();
-        /** 物品更新事件的回调函数列表 */
         static itemsUpdatedCallbacks: ((items: CharacterItem[]) => void)[] = [];
 
-        /**
-         * 查询指定物品和强化等级的数量
-         * @param itemHrid 物品的唯一标识符
-         * @param enhancementLevel 强化等级，默认为0
-         * @returns 物品数量，如果不存在则返回0
-         */
+        // 获取物品数量
         static getCount(itemHrid: string, enhancementLevel: number = 0): number {
             return MWI_Toolkit_ItemsMap.map.get(itemHrid)?.get(enhancementLevel) ?? 0;
         }
 
-        /**
-         * 获取当前库存的物品映射表（仅基础等级数量）
-         * @returns 当前库存的物品映射表（仅基础等级数量）
-         */
+        // 获取所有物品数量
         static getInventoryMap(): Map<string, number> {
             const inventoryMap = new Map<string, number>();
             MWI_Toolkit_ItemsMap.map.forEach((enhancementMap, itemHrid) => {
@@ -2413,11 +2226,7 @@ interface ItemsUpdatedData {
             return inventoryMap;
         }
 
-        /**
-         * 查询指定物品的最大强化等级
-         * @param itemHrid 物品的唯一标识符
-         * @returns 最大强化等级，如果物品不存在或所有数量为0则返回-1
-         */
+        // 获取物品最高强化等级
         static getMaxEnhancementLevel(itemHrid: string): number {
             const m = MWI_Toolkit_ItemsMap.map.get(itemHrid);
             if (!m) { return -1; }
@@ -2430,10 +2239,7 @@ interface ItemsUpdatedData {
             return max;
         }
 
-        /**
-         * 更新物品数据
-         * @param endCharacterItems 要更新的物品列表
-         */
+        // 更新物品数据
         static update(endCharacterItems: CharacterItem[]): void {
             if (!endCharacterItems) { return; }
             for (const item of endCharacterItems) {
@@ -2451,9 +2257,7 @@ interface ItemsUpdatedData {
             });
         }
 
-        /**
-         * 清空所有物品数据
-         */
+        // 清空物品数据
         static clear(): void {
             MWI_Toolkit_ItemsMap.map.clear();
         }
@@ -2463,23 +2267,12 @@ interface ItemsUpdatedData {
 
     //#region MWI_Toolkit
 
-    /**
-     * MWI工具包主类
-     * 提供游戏数据抓取、国际化、物品管理等核心功能
-     * 使用单例模式确保全局只有一个实例
-     */
     class MWI_Toolkit {
-        /** 初始化客户端数据（从localStorage获取） */
-        static initClientData: InitClientData | null = null;
-        /** 游戏对象实例（从React组件获取） */
         static gameObject: GameObject | null = null;
-        /** 是否已初始化 */
+        static initClientData: InitClientData | null = null;
         static initialized: boolean = false;
 
-        /**
-         * 启动工具包
-         * 等待游戏页面加载完成后进行初始化
-         */
+        // 启动
         static start(): void {
             MWI_Toolkit.setupWebSocketInterceptor();
             MWI_Toolkit.waitForElement('[class^="GamePage"]', () => {
@@ -2487,10 +2280,7 @@ interface ItemsUpdatedData {
             });
         }
 
-        /**
-         * 设置 WebSocket 消息拦截器
-         * 通过劫持 MessageEvent.prototype.data 来拦截所有 WebSocket 消息
-         */
+        // 设置 WebSocket 消息拦截器
         static setupWebSocketInterceptor(): void {
             const oriGet = Object.getOwnPropertyDescriptor(MessageEvent.prototype, "data")?.get;
             if (!oriGet) { return; }
@@ -2513,11 +2303,7 @@ interface ItemsUpdatedData {
             });
         }
 
-        /**
-         * 处理 WebSocket 消息
-         * 解析消息并根据类型进行相应处理
-         * @param message WebSocket 消息内容（JSON字符串）
-         */
+        // 处理 WebSocket 消息
         static handleWebSocketMessage(message: string): void {
             try {
                 const obj: unknown = JSON.parse(message);
@@ -2539,11 +2325,7 @@ interface ItemsUpdatedData {
             }
         }
 
-        /**
-         * 处理角色初始化数据
-         * 当切换角色或刷新页面时会收到此消息
-         * @param data 角色初始化数据
-         */
+        // 处理角色初始化数据
         static handleInitCharacterData(data: InitCharacterData): void {
             // 清空并初始化物品映射表
             MWI_Toolkit_ItemsMap.clear();
@@ -2559,21 +2341,13 @@ interface ItemsUpdatedData {
             });
         }
 
-        /**
-         * 处理物品变更数据
-         * 当物品数量、强化等级等发生变化时会收到此消息
-         * @param data 包含变更后物品数据的消息
-         */
+        // 处理物品变更数据
         static handleEndCharacterItems(data: ItemsUpdatedData): void {
             // 更新物品映射表
             MWI_Toolkit_ItemsMap.update(data.endCharacterItems);
         }
 
-        /**
-         * 等待指定的DOM元素出现
-         * 使用 MutationObserver 监听DOM变化
-         * @param callback 元素出现后执行的回调函数
-         */
+        // 等待元素出现
         static waitForElement(selector: string, callback: () => void): void {
             const el = document.querySelector(selector);
             if (el) {
@@ -2592,10 +2366,7 @@ interface ItemsUpdatedData {
             observer.observe(document.body, { childList: true, subtree: true });
         }
 
-        /**
-         * 初始化工具包
-         * 获取游戏对象实例并设置初始化标志
-         */
+        // 初始化
         static initialize(): void {
             MWI_Toolkit.gameObject = MWI_Toolkit.getGameObject();
             MWI_Toolkit.initClientData = MWI_Toolkit.getInitClientData();
@@ -2610,11 +2381,7 @@ interface ItemsUpdatedData {
             console.log(MWI_Toolkit.gameObject, MWI_Toolkit.initClientData);
         }
 
-        /**
-         * 从DOM元素获取React组件实例
-         * 通过访问React内部的Fiber节点来获取组件实例
-         * @returns React组件实例，如果未找到则返回null
-         */
+        // 获取游戏主组件实例
         static getGameObject(): GameObject | null {
             // (e => e?.[Object.keys(e).find(k => k.startsWith('__reactFiber$'))]?.return?.stateNode)(document.querySelector('[class^="GamePage"]'))
             const gamePageElement = document.querySelector('[class^="GamePage"]') as HTMLElement;
@@ -2629,11 +2396,7 @@ interface ItemsUpdatedData {
             return fiber?.return?.stateNode || null;
         }
 
-        /**
-         * 从localStorage获取初始化客户端数据
-         * 数据以压缩的UTF-16字符串形式存储
-         * @returns 初始化客户端数据对象，如果未找到则返回null
-         */
+        // 获取初始化客户端数据
         static getInitClientData(): InitClientData | null {
             const compressedData = localStorage.getItem("initClientData");
             if (compressedData) {
