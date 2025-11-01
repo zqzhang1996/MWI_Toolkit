@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.3.0
+// @version      5.3.1
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -1204,26 +1204,36 @@
             if (!outputCount) {
                 return;
             }
-            // 三采添加置信度计算保证最终随机产出不低于需求
-            if (actionHrid.includes('milking') || actionHrid.includes('foraging') || actionHrid.includes('woodcutting')) {
-                // 对于可加工物品，检查加工茶和工匠茶的影响
-                // const processedItemHrid = MWI_Toolkit_ActionDetailPlus.processableItemMap.get(requiredItem.itemHrid);
-                // if (processedItemHrid) {
-                //     // 对于可加工物品，考虑工匠茶
-                //     const processedItemOutputCount = outputItems.find(oi => oi.itemHrid === processedItemHrid)?.count || 0;
-                //     const processedItemShortageCount = MWI_Toolkit_Calculator.requiredItemsMap.get(processedItemHrid)?.shortageCount || 0;
-                //     if (processedItemOutputCount !== 0 && processedItemShortageCount !== 0) {
-                //         const processedItemInputCount = MWI_Toolkit_ActionDetailPlus.tryGetRecipe(processedItemHrid).inputs.find(ii => ii.itemHrid === requiredItem.itemHrid)?.count || 2;
-                //         const processedItemCountGetByProcessingTea = Math.ceil(processedItemShortageCount / processedItemOutputCount) * processedItemInputCount;
-                //     }
-                // }
-                // 直接使用99%置信度计算所需次数
-                const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount);
+            if (!actionHrid.includes('milking') && !actionHrid.includes('foraging') && !actionHrid.includes('woodcutting')) {
+                // 其他情况直接计算所需次数
+                const actionCount = Math.ceil(requiredItem.shortageCount / outputCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
             }
             else {
-                // 其他情况直接计算所需次数
-                const actionCount = Math.ceil(requiredItem.shortageCount / outputCount);
+                // 三采使用置信度计算保证最终随机产出不低于需求
+                const processedItemHrid = MWI_Toolkit_ActionDetailPlus.processableItemMap.get(requiredItem.itemHrid);
+                if (processedItemHrid) {
+                    // 对于可加工物品，检查加工茶和工匠茶的影响
+                    const processedItemOutputCount = outputItems.find(oi => oi.itemHrid === processedItemHrid)?.count || 0;
+                    const processedItemShortageCount = MWI_Toolkit_Calculator.requiredItemsMap.get(processedItemHrid)?.shortageCount || 0;
+                    if (processedItemOutputCount !== 0 && processedItemShortageCount !== 0) {
+                        const processedItemInputCount = MWI_Toolkit_ActionDetailPlus.tryGetRecipe(processedItemHrid)
+                            .inputs.find(ii => ii.itemHrid === requiredItem.itemHrid)?.count || 2;
+                        if (requiredItem.shortageCount < (processedItemShortageCount / processedItemOutputCount * outputCount)) {
+                            // 加工茶效果产物不能完全覆盖需求，按比例计算
+                            const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount / (outputCount + processedItemOutputCount * processedItemInputCount) * outputCount);
+                            MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
+                        }
+                        else {
+                            // 加工茶效果产物可以完全覆盖需求，从原材料中扣除总数对应原料
+                            const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount - processedItemShortageCount * processedItemInputCount);
+                            MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
+                        }
+                        return;
+                    }
+                }
+                // 直接使用99%置信度计算所需次数
+                const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
             }
         }
