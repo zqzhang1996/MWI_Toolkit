@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.2.2
+// @version      5.3.0
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -37,7 +37,7 @@
             this.initDisplayProperties();
         }
         initDisplayProperties() {
-            if (Object.values(MWI_Toolkit_ActionDetailPlus.processableItemList).includes(this.itemHrid)) {
+            if ([...MWI_Toolkit_ActionDetailPlus.processableItemMap.values()].includes(this.itemHrid)) {
                 this.categoryHrid = '/item_categories/materials';
             }
             else if (this.itemHrid.endsWith('_tea')) {
@@ -124,7 +124,7 @@
                 }
                 if (this.shortageCount > 0) {
                     let inputShortageCount = 0;
-                    MWI_Toolkit_Calculator.tryGetRecipe(this.itemHrid)?.inputs?.forEach(input => {
+                    MWI_Toolkit_ActionDetailPlus.tryGetRecipe(this.itemHrid)?.inputs?.forEach(input => {
                         inputShortageCount += MWI_Toolkit_Calculator.requiredItemsMap.get(input.itemHrid)?.shortageCount || 0;
                     });
                     this.shortageDisplayElement.style.background = (inputShortageCount === 0 ? '#147147' : '');
@@ -342,42 +342,6 @@
                 MWI_Toolkit_Calculator.renderTimeout = null;
             }, 300); // 300ms 防抖延迟
         }
-        // 获取物品配方
-        static tryGetRecipe(itemHrid) {
-            const itemName = itemHrid.split('/').pop() || '';
-            // 检查商店兑换
-            const shopHrid = `/shop_items/${itemName}`;
-            if (MWI_Toolkit.initClientData?.shopItemDetailMap?.hasOwnProperty(shopHrid)) {
-                const shopItemDetail = MWI_Toolkit.initClientData?.shopItemDetailMap[shopHrid];
-                if (shopItemDetail.category === "/shop_categories/dungeon") {
-                    const recipe = { inputs: new Array, outputCount: 1 };
-                    shopItemDetail.costs.forEach(cost => {
-                        recipe.inputs.push({ itemHrid: cost.itemHrid, count: cost.count });
-                    });
-                    return recipe;
-                }
-            }
-            // 检查制造配方
-            const actionTypes = ["cheesesmithing", "crafting", "tailoring", "cooking", "brewing"];
-            for (const actionType of actionTypes) {
-                const actionHrid = `/actions/${actionType}/${itemName}`;
-                if (MWI_Toolkit.initClientData?.actionDetailMap?.hasOwnProperty(actionHrid)) {
-                    // 复用 MWI_Toolkit_ActionDetailPlus 的计算逻辑以获得输入/输出（考虑茶水等加成在 calculateRequiredItems 中已处理）
-                    const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid);
-                    if (upgradeItemHrid) {
-                        inputItems.push({ itemHrid: upgradeItemHrid, count: 1 });
-                    } // 升级物品固定需求数量1，添加到输入中
-                    let outputCount = 1;
-                    if (outputItems && outputItems.length > 0) {
-                        const matching = outputItems.find(o => o.itemHrid === itemHrid);
-                        if (matching)
-                            outputCount = matching.count || 1;
-                    }
-                    return { inputs: inputItems, outputCount };
-                }
-            }
-            return null;
-        }
         // 计算所有所需材料
         static calculateAllRequiredItems(inventoryMap) {
             const result = new Map();
@@ -413,7 +377,7 @@
                 const remain = need - use;
                 if (remain > 0) {
                     result.set(itemHrid, (result.get(itemHrid) || 0) + remain);
-                    const recipe = MWI_Toolkit_Calculator.tryGetRecipe(itemHrid);
+                    const recipe = MWI_Toolkit_ActionDetailPlus.tryGetRecipe(itemHrid);
                     if (!recipe)
                         continue;
                     const times = Math.ceil(remain / recipe.outputCount);
@@ -803,13 +767,8 @@
                 }
                 // 物品图标
                 const itemIcon = document.createElement('div');
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                svg.setAttribute('width', '16px');
-                svg.setAttribute('height', '16px');
-                svg.style.display = 'block';
-                const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', MWI_Toolkit_Utils.getIconHrefByItemHrid(itemHrid));
-                svg.appendChild(use);
+                const iconHref = MWI_Toolkit_Utils.getIconHrefByItemHrid(itemHrid);
+                const svg = MWI_Toolkit_Utils.createIconSvg(iconHref);
                 itemIcon.appendChild(svg);
                 // 物品名称
                 const itemName = document.createElement('span');
@@ -960,13 +919,8 @@
                 optionItem.style.cursor = 'pointer';
                 // 房屋房间图标
                 const houseRoomIcon = document.createElement('div');
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                svg.setAttribute('width', '16px');
-                svg.setAttribute('height', '16px');
-                svg.style.display = 'block';
-                const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', MWI_Toolkit_Utils.getIconHrefBySkillHrid(houseRoomDetail.skillHrid));
-                svg.appendChild(use);
+                const iconHref = MWI_Toolkit_Utils.getIconHrefBySkillHrid(houseRoomDetail.skillHrid);
+                const svg = MWI_Toolkit_Utils.createIconSvg(iconHref);
                 houseRoomIcon.appendChild(svg);
                 // 房屋房间名称
                 const houseRoomName = document.createElement('span');
@@ -1140,13 +1094,8 @@
             removeButton.style.padding = '4px';
             removeButton.style.margin = '2px';
             removeButton.style.cursor = 'pointer';
-            const removeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            removeSvg.setAttribute('width', '18px');
-            removeSvg.setAttribute('height', '18px');
-            removeSvg.style.display = 'block';
-            const removeUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            removeUse.setAttributeNS('http://www.w3.org/1999/xlink', 'href', MWI_Toolkit_Utils.getIconHrefByMiscHrid('remove'));
-            removeSvg.appendChild(removeUse);
+            const iconHref = MWI_Toolkit_Utils.getIconHrefByMiscHrid('remove');
+            const removeSvg = MWI_Toolkit_Utils.createIconSvg(iconHref);
             removeButton.appendChild(removeSvg);
             removeButton.addEventListener('click', () => {
                 MWI_Toolkit_Calculator.removeTargetItem(targetItem.itemHrid);
@@ -1230,13 +1179,7 @@
             // 物品图标
             const iconContainer = document.createElement('div');
             iconContainer.style.marginLeft = '2px';
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('width', '18px');
-            svg.setAttribute('height', '18px');
-            svg.style.display = 'block';
-            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', displayItem.iconHref);
-            svg.appendChild(use);
+            const svg = MWI_Toolkit_Utils.createIconSvg(displayItem.iconHref);
             iconContainer.appendChild(svg);
             // 物品名称
             const displayNameSpan = document.createElement('span');
@@ -1250,23 +1193,37 @@
             return container;
         }
         // 尝试打开动作面板
-        static TryGotoActionDetailByRequiredItem(requiredItem, useConfidence = true) {
+        static TryGotoActionDetailByRequiredItem(requiredItem) {
             const actionHrid = MWI_Toolkit_ActionDetailPlus.getActionHrid(requiredItem.displayName)
-                ?? MWI_Toolkit_ActionDetailPlus.processableActionList[requiredItem.itemHrid]
-                ?? null;
+                ?? MWI_Toolkit_ActionDetailPlus.processableActionMap.get(requiredItem.itemHrid);
             if (!actionHrid) {
                 return;
             }
-            const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid, true);
-            const outputCount = outputItems.find(oi => oi.itemHrid === requiredItem.itemHrid)?.count || 1;
-            if (!useConfidence || outputCount % 1 === 0) {
-                // 对于不使用置信度或产出为整数的情况，直接计算所需次数
-                const actionCount = Math.ceil(requiredItem.shortageCount / outputCount);
+            const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid);
+            const outputCount = outputItems.find(oi => oi.itemHrid === requiredItem.itemHrid)?.count;
+            if (!outputCount) {
+                return;
+            }
+            // 三采添加置信度计算保证最终随机产出不低于需求
+            if (actionHrid.includes('milking') || actionHrid.includes('foraging') || actionHrid.includes('woodcutting')) {
+                // 对于可加工物品，检查加工茶和工匠茶的影响
+                // const processedItemHrid = MWI_Toolkit_ActionDetailPlus.processableItemMap.get(requiredItem.itemHrid);
+                // if (processedItemHrid) {
+                //     // 对于可加工物品，考虑工匠茶
+                //     const processedItemOutputCount = outputItems.find(oi => oi.itemHrid === processedItemHrid)?.count || 0;
+                //     const processedItemShortageCount = MWI_Toolkit_Calculator.requiredItemsMap.get(processedItemHrid)?.shortageCount || 0;
+                //     if (processedItemOutputCount !== 0 && processedItemShortageCount !== 0) {
+                //         const processedItemInputCount = MWI_Toolkit_ActionDetailPlus.tryGetRecipe(processedItemHrid).inputs.find(ii => ii.itemHrid === requiredItem.itemHrid)?.count || 2;
+                //         const processedItemCountGetByProcessingTea = Math.ceil(processedItemShortageCount / processedItemOutputCount) * processedItemInputCount;
+                //     }
+                // }
+                // 直接使用99%置信度计算所需次数
+                const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
             }
             else {
-                // 对于产出随机的情况，使用99%置信度计算所需次数
-                const actionCount = MWI_Toolkit_Calculator.getRequiredTrials99(outputCount, requiredItem.shortageCount);
+                // 其他情况直接计算所需次数
+                const actionCount = Math.ceil(requiredItem.shortageCount / outputCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
             }
         }
@@ -1305,7 +1262,13 @@
     MWI_Toolkit_Calculator.renderTimeout = null;
     //#endregion
     //#region ActionDetailPlus
-    class ItemCountComponent {
+    class UpgradeItemComponent {
+    }
+    class InputItemComponent {
+    }
+    class OutputItemComponent {
+    }
+    class ProcessingTeaComponent {
     }
     class MWI_Toolkit_ActionDetailPlus {
         // 初始化监听器
@@ -1327,79 +1290,11 @@
             const actionName = MWI_Toolkit_ActionDetailPlus.getActionName();
             const actionHrid = MWI_Toolkit_ActionDetailPlus.getActionHrid(actionName);
             const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid);
-            const upgradeItemComponent = { itemHrid: '', count: 0 };
-            if (upgradeItemHrid) {
-                const shortageCountContainer = document.querySelector('[class^="SkillActionDetail_upgradeItemSelectorInput"]')?.parentElement?.previousElementSibling;
-                if (shortageCountContainer) {
-                    const newTextSpan = document.createElement('span');
-                    newTextSpan.textContent = shortageCountContainer.textContent;
-                    newTextSpan.style.height = window.getComputedStyle(document.querySelector('[class*="SkillActionDetail_levelRequirement"]')).height;
-                    shortageCountContainer.innerHTML = '';
-                    shortageCountContainer.appendChild(newTextSpan);
-                    const shortageCountComponent = document.createElement('div');
-                    shortageCountComponent.style.display = 'flex';
-                    shortageCountComponent.style.alignItems = 'flex-end';
-                    shortageCountComponent.style.flexDirection = 'column';
-                    const shortageCountSpan = document.createElement('span');
-                    shortageCountSpan.style.display = 'flex';
-                    shortageCountSpan.style.alignItems = 'center';
-                    shortageCountSpan.style.color = '#faa21e';
-                    shortageCountComponent.appendChild(shortageCountSpan);
-                    upgradeItemComponent.itemHrid = upgradeItemHrid;
-                    upgradeItemComponent.shortageCountSpan = shortageCountSpan;
-                    upgradeItemComponent.count = 1; // 升级物品固定需求1个
-                    shortageCountContainer.appendChild(shortageCountComponent);
-                }
-            }
-            // [{itemHrid, shortageCountSpan, inventoryCountSpan, inputCountSpan, count}]
-            const inputItemComponents = Array();
-            if (inputItems) {
-                const inputItemComponentContainer = document.querySelector('[class^="SkillActionDetail_itemRequirements"]');
-                const shortageCountContainer = inputItemComponentContainer?.parentElement?.previousElementSibling;
-                if (shortageCountContainer) {
-                    const newTextSpan = document.createElement('span');
-                    newTextSpan.textContent = shortageCountContainer.textContent;
-                    newTextSpan.style.height = window.getComputedStyle(document.querySelector('[class*="SkillActionDetail_levelRequirement"]')).height;
-                    shortageCountContainer.innerHTML = '';
-                    shortageCountContainer.appendChild(newTextSpan);
-                    const shortageCountComponent = document.createElement('div');
-                    shortageCountComponent.style.display = 'flex';
-                    shortageCountComponent.style.alignItems = 'flex-end';
-                    shortageCountComponent.style.flexDirection = 'column';
-                    const inventoryCountSpans = inputItemComponentContainer?.querySelectorAll('[class*="SkillActionDetail_inventoryCount"]');
-                    const inputCountSpans = inputItemComponentContainer?.querySelectorAll('[class*="SkillActionDetail_inputCount"]');
-                    const itemContainers = inputItemComponentContainer?.querySelectorAll('[class*="Item_itemContainer"]');
-                    for (let i = 0; i < itemContainers.length; i++) {
-                        inputCountSpans[i].style.color = '#E7E7E7';
-                        const inputItemHrid = '/items/' + itemContainers[i].querySelector('svg use').getAttribute('href').split('#').pop();
-                        const inputItemCount = inputItems.find(item => item.itemHrid === inputItemHrid)?.count || 0;
-                        const shortageCountSpan = document.createElement('span');
-                        shortageCountSpan.style.height = window.getComputedStyle(itemContainers[i]).height;
-                        shortageCountSpan.style.display = 'flex';
-                        shortageCountSpan.style.alignItems = 'center';
-                        shortageCountSpan.style.color = '#faa21e';
-                        shortageCountComponent.appendChild(shortageCountSpan);
-                        inputItemComponents.push({ itemHrid: inputItemHrid, shortageCountSpan: shortageCountSpan, inventoryCountSpan: inventoryCountSpans[i], inputCountSpan: inputCountSpans[i], count: inputItemCount });
-                    }
-                    shortageCountContainer.appendChild(shortageCountComponent);
-                }
-            }
-            // [{itemHrid, input, count}]
-            const outputItemComponents = Array();
-            let lastOutputItemComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]');
-            const outputItemComponentContainer = lastOutputItemComponent.parentElement;
-            const skillActionTimeInput = lastOutputItemComponent.querySelector('input');
-            const skillActionTimeButtons = lastOutputItemComponent.querySelectorAll('button');
-            for (const outputItem of outputItems) {
-                if (outputItem.count === 1 && outputItems.length === 1)
-                    break; // 仅有一个产出且数量为1时不创建额外输入框
-                const { component, input } = MWI_Toolkit_ActionDetailPlus.createOutputItemComponent(outputItem.itemHrid);
-                if (component && input) {
-                    outputItemComponentContainer.insertBefore(component, lastOutputItemComponent.nextSibling);
-                    outputItemComponents.push({ itemHrid: outputItem.itemHrid, outputItemInput: input, count: outputItem.count });
-                    lastOutputItemComponent = component;
-                }
-            }
+            const skillActionTimeInput = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]').querySelector('input');
+            const skillActionTimeButtons = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]').querySelectorAll('button');
+            MWI_Toolkit_ActionDetailPlus.createUpgradeItemComponent(upgradeItemHrid);
+            MWI_Toolkit_ActionDetailPlus.createInputItemComponents(inputItems);
+            MWI_Toolkit_ActionDetailPlus.createOutputItemComponents(outputItems);
             // 联动
             let linking = false;
             function updateSkillActionDetail(e) {
@@ -1407,19 +1302,19 @@
                     return;
                 linking = true;
                 const target = e.target;
-                const index = outputItemComponents.findIndex(component => component.outputItemInput === target);
+                const index = MWI_Toolkit_ActionDetailPlus.outputItemComponents.findIndex(component => component.outputItemInput === target);
                 const targetValue = parseInt(target.value, 10);
                 if (index !== -1) {
-                    skillActionTimeInput.value = (isNaN(targetValue)) ? '∞' : Math.ceil(targetValue / outputItemComponents[index].count).toString();
+                    skillActionTimeInput.value = (isNaN(targetValue)) ? '∞' : Math.ceil(targetValue / MWI_Toolkit_ActionDetailPlus.outputItemComponents[index].count).toString();
                     MWI_Toolkit_Utils.reactInputTriggerHack(skillActionTimeInput);
                 }
                 const skillActionTimes = parseInt(skillActionTimeInput.value, 10);
-                outputItemComponents.forEach(component => {
+                MWI_Toolkit_ActionDetailPlus.outputItemComponents.forEach(component => {
                     if (component.outputItemInput !== target) {
                         component.outputItemInput.value = (isNaN(skillActionTimes)) ? '∞' : Math.ceil(skillActionTimes * component.count).toString();
                     }
                 });
-                inputItemComponents.forEach(component => {
+                MWI_Toolkit_ActionDetailPlus.inputItemComponents.forEach(component => {
                     const inventoryCount = MWI_Toolkit_ItemsMap.getCount(component.itemHrid);
                     const requiredCount = component.count * skillActionTimes;
                     if (isNaN(skillActionTimes)) {
@@ -1438,25 +1333,29 @@
                     }
                     component.inputCountSpan.textContent = '\u00A0/ ' + MWI_Toolkit_Utils.formatNumber(component.count * ((isNaN(skillActionTimes) ? 1 : skillActionTimes))) + '\u00A0';
                 });
-                if (upgradeItemComponent.shortageCountSpan) {
+                if (MWI_Toolkit_ActionDetailPlus.upgradeItemComponent) {
                     if (isNaN(skillActionTimes)) {
-                        upgradeItemComponent.shortageCountSpan.textContent = '';
+                        MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.shortageCountSpan.textContent = '';
                     }
                     else {
-                        const requiredCount = upgradeItemComponent.count * skillActionTimes;
-                        const inventoryCount = MWI_Toolkit_ItemsMap.getCount(upgradeItemComponent.itemHrid);
+                        const requiredCount = MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.count * skillActionTimes;
+                        const inventoryCount = MWI_Toolkit_ItemsMap.getCount(MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.itemHrid);
                         if (requiredCount > inventoryCount) {
-                            upgradeItemComponent.shortageCountSpan.textContent = MWI_Toolkit_Utils.formatNumber(requiredCount - inventoryCount);
+                            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.shortageCountSpan.textContent = MWI_Toolkit_Utils.formatNumber(requiredCount - inventoryCount);
                         }
                         else {
-                            upgradeItemComponent.shortageCountSpan.textContent = ' ';
+                            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.shortageCountSpan.textContent = ' ';
                         }
                     }
+                }
+                if (MWI_Toolkit_ActionDetailPlus.processingTeaComponent) {
+                    MWI_Toolkit_ActionDetailPlus.processingTeaComponent.CountSpan.textContent =
+                        (isNaN(skillActionTimes)) ? '∞' : Math.ceil(skillActionTimes * MWI_Toolkit_ActionDetailPlus.processingTeaComponent.count).toString();
                 }
                 linking = false;
             }
             skillActionTimeInput.addEventListener('input', updateSkillActionDetail);
-            outputItemComponents.forEach(component => {
+            MWI_Toolkit_ActionDetailPlus.outputItemComponents.forEach(component => {
                 component.outputItemInput.addEventListener('input', updateSkillActionDetail);
             });
             skillActionTimeButtons.forEach(btn => {
@@ -1471,8 +1370,268 @@
                 skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
             }, 20);
         }
+        // 创建升级物品组件
+        static createUpgradeItemComponent(upgradeItemHrid) {
+            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent = null;
+            if (!upgradeItemHrid) {
+                return;
+            }
+            const shortageCountContainer = document.querySelector('[class^="SkillActionDetail_upgradeItemSelectorInput"]')?.parentElement?.previousElementSibling;
+            if (!shortageCountContainer) {
+                return;
+            }
+            const newTextSpan = document.createElement('span');
+            newTextSpan.textContent = shortageCountContainer.textContent;
+            newTextSpan.style.height = window.getComputedStyle(document.querySelector('[class*="SkillActionDetail_levelRequirement"]')).height;
+            shortageCountContainer.innerHTML = '';
+            shortageCountContainer.appendChild(newTextSpan);
+            const shortageCountDiv = document.createElement('div');
+            shortageCountDiv.style.display = 'flex';
+            shortageCountDiv.style.alignItems = 'flex-end';
+            shortageCountDiv.style.flexDirection = 'column';
+            const shortageCountSpan = document.createElement('span');
+            shortageCountSpan.style.display = 'flex';
+            shortageCountSpan.style.alignItems = 'center';
+            shortageCountSpan.style.color = '#faa21e';
+            shortageCountDiv.appendChild(shortageCountSpan);
+            shortageCountContainer.appendChild(shortageCountDiv);
+            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent = new UpgradeItemComponent();
+            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.itemHrid = upgradeItemHrid;
+            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.count = 1; // 升级物品固定需求1个
+            MWI_Toolkit_ActionDetailPlus.upgradeItemComponent.shortageCountSpan = shortageCountSpan;
+        }
+        // 创建所有输入物品组件
+        static createInputItemComponents(inputItems) {
+            MWI_Toolkit_ActionDetailPlus.inputItemComponents = new Array();
+            if (!inputItems || inputItems.length === 0) {
+                return;
+            }
+            const inputItemComponentContainer = document.querySelector('[class^="SkillActionDetail_itemRequirements"]');
+            const shortageCountContainer = inputItemComponentContainer?.parentElement?.previousElementSibling;
+            if (shortageCountContainer) {
+                const newTextSpan = document.createElement('span');
+                newTextSpan.textContent = shortageCountContainer.textContent;
+                newTextSpan.style.height = window.getComputedStyle(document.querySelector('[class*="SkillActionDetail_levelRequirement"]')).height;
+                const shortageCountComponent = document.createElement('div');
+                shortageCountComponent.style.display = 'flex';
+                shortageCountComponent.style.alignItems = 'flex-end';
+                shortageCountComponent.style.flexDirection = 'column';
+                shortageCountContainer.innerHTML = '';
+                shortageCountContainer.appendChild(newTextSpan);
+                shortageCountContainer.appendChild(shortageCountComponent);
+                const inventoryCountSpans = inputItemComponentContainer?.querySelectorAll('[class*="SkillActionDetail_inventoryCount"]');
+                const inputCountSpans = inputItemComponentContainer?.querySelectorAll('[class*="SkillActionDetail_inputCount"]');
+                const itemContainers = inputItemComponentContainer?.querySelectorAll('[class*="Item_itemContainer"]');
+                for (let i = 0; i < itemContainers.length; i++) {
+                    inputCountSpans[i].style.color = '#E7E7E7';
+                    const inputItemHrid = '/items/' + itemContainers[i].querySelector('svg use').getAttribute('href').split('#').pop();
+                    const inputItemCount = inputItems.find(item => item.itemHrid === inputItemHrid)?.count || 0;
+                    const shortageCountSpan = document.createElement('span');
+                    shortageCountSpan.style.height = window.getComputedStyle(itemContainers[i]).height;
+                    shortageCountSpan.style.display = 'flex';
+                    shortageCountSpan.style.alignItems = 'center';
+                    shortageCountSpan.style.color = '#faa21e';
+                    shortageCountComponent.appendChild(shortageCountSpan);
+                    const inputItemComponent = new InputItemComponent();
+                    inputItemComponent.itemHrid = inputItemHrid;
+                    inputItemComponent.count = inputItemCount;
+                    inputItemComponent.shortageCountSpan = shortageCountSpan;
+                    inputItemComponent.inventoryCountSpan = inventoryCountSpans[i];
+                    inputItemComponent.inputCountSpan = inputCountSpans[i];
+                    MWI_Toolkit_ActionDetailPlus.inputItemComponents.push(inputItemComponent);
+                }
+            }
+        }
+        // 创建所有输出物品组件
+        static createOutputItemComponents(outputItems) {
+            MWI_Toolkit_ActionDetailPlus.outputItemComponents = Array();
+            MWI_Toolkit_ActionDetailPlus.processingTeaComponent = null;
+            let lastOutputItemComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]');
+            for (const outputItem of outputItems) {
+                if (outputItem.count === 1 && outputItems.length === 1)
+                    break; // 仅有一个产出且数量为1时不创建额外输入框
+                const processedItemHrid = [...MWI_Toolkit_ActionDetailPlus.processableItemMap.values()].find(v => v === outputItem.itemHrid);
+                if (processedItemHrid) {
+                    // 加工茶产物
+                    const processedItemComponent = MWI_Toolkit_ActionDetailPlus.createProcessingTeaComponent(outputItem, outputItems);
+                    lastOutputItemComponent.insertAdjacentElement('afterend', processedItemComponent);
+                    lastOutputItemComponent = processedItemComponent;
+                }
+                else {
+                    // 直接采集产物
+                    const outputItemComponent = MWI_Toolkit_ActionDetailPlus.createOutputItemComponent(outputItem);
+                    lastOutputItemComponent.insertAdjacentElement('afterend', outputItemComponent);
+                    lastOutputItemComponent = outputItemComponent;
+                }
+            }
+        }
+        // 创建输出物品组件
+        static createOutputItemComponent(outputItem) {
+            const origComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]');
+            if (!origComponent)
+                return null;
+            // 克隆外层div（不带子内容）
+            const component = origComponent.cloneNode(false);
+            const originalActionLabel = document.querySelector('[class^="SkillActionDetail_actionContainer"] [class^="SkillActionDetail_label"]');
+            // 物品图标
+            const itemIcon = document.createElement('div');
+            itemIcon.style.width = window.getComputedStyle(originalActionLabel).width;
+            itemIcon.style.marginRight = '2px';
+            itemIcon.style.display = 'flex';
+            itemIcon.style.alignItems = 'center';
+            itemIcon.style.justifyContent = 'center';
+            const iconHref = MWI_Toolkit_Utils.getIconHrefByItemHrid(outputItem.itemHrid);
+            const svg = MWI_Toolkit_Utils.createIconSvg(iconHref);
+            itemIcon.appendChild(svg);
+            component.appendChild(itemIcon);
+            // 输入框
+            const origInputWrap = origComponent.querySelector('[class^="SkillActionDetail_input"]');
+            const inputWrap = origInputWrap.cloneNode(true);
+            const origInput = origInputWrap.querySelector('input');
+            const input = inputWrap.querySelector('input');
+            input.addEventListener('focus', () => { input.select(); });
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && origInput) {
+                    origInput.dispatchEvent(event);
+                }
+            });
+            component.appendChild(inputWrap);
+            // 快捷填充按钮
+            const btns = [
+                { val: 1000, txt: '1k' },
+                { val: 2000, txt: '2k' },
+                { val: 5000, txt: '5k' }
+            ];
+            const origButtons = origComponent.querySelectorAll('button');
+            const buttonClass = origButtons.length > 0 ? origButtons[0].className : '';
+            btns.forEach(({ val, txt }) => {
+                const btn = document.createElement('button');
+                btn.className = buttonClass;
+                btn.textContent = txt;
+                btn.addEventListener('click', () => {
+                    input.value = val.toString();
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+                component.appendChild(btn);
+            });
+            const outputItemComponent = new OutputItemComponent();
+            outputItemComponent.count = outputItem.count;
+            outputItemComponent.outputItemInput = input;
+            MWI_Toolkit_ActionDetailPlus.outputItemComponents.push(outputItemComponent);
+            return component;
+        }
+        // 创建加工茶产出组件
+        static createProcessingTeaComponent(processedItem, outputItems) {
+            const origComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]');
+            if (!origComponent)
+                return null;
+            // 克隆外层div（不带子内容）
+            const component = origComponent.cloneNode(false);
+            // 制表符
+            const originalActionLabel = document.querySelector('[class^="SkillActionDetail_actionContainer"] [class^="SkillActionDetail_label"]');
+            const tab = originalActionLabel.cloneNode(false);
+            tab.textContent = '┗';
+            tab.style.width = '24px';
+            component.appendChild(tab);
+            // 物品图标
+            const itemIcon = document.createElement('div');
+            itemIcon.style.width = '24px';
+            itemIcon.style.marginRight = '2px';
+            itemIcon.style.display = 'flex';
+            itemIcon.style.alignItems = 'center';
+            itemIcon.style.justifyContent = 'center';
+            const iconHref = MWI_Toolkit_Utils.getIconHrefByItemHrid(processedItem.itemHrid);
+            const svg = MWI_Toolkit_Utils.createIconSvg(iconHref);
+            itemIcon.appendChild(svg);
+            component.appendChild(itemIcon);
+            // 输入框
+            const origInputWrap = origComponent.querySelector('[class^="SkillActionDetail_input"]');
+            const origInput = origInputWrap.querySelector('input');
+            const inputWrap = origInputWrap.cloneNode(true);
+            const input = inputWrap.querySelector('input');
+            input.disabled = (processedItem.count === 0);
+            input.addEventListener('focus', () => { input.select(); });
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && origInput) {
+                    origInput.dispatchEvent(event);
+                }
+            });
+            component.appendChild(inputWrap);
+            const outputItemComponent = new OutputItemComponent();
+            outputItemComponent.count = processedItem.count;
+            outputItemComponent.outputItemInput = input;
+            MWI_Toolkit_ActionDetailPlus.outputItemComponents.push(outputItemComponent);
+            const processableItemHrid = [...MWI_Toolkit_ActionDetailPlus.processableItemMap.entries()]
+                .find(([, v]) => v === processedItem.itemHrid)?.[0];
+            const processableItem = outputItems.find(oi => oi.itemHrid === processableItemHrid);
+            const recipeInputItem = MWI_Toolkit_ActionDetailPlus.tryGetRecipe(processedItem.itemHrid).inputs[0];
+            const slash1 = document.createElement('span');
+            slash1.textContent = '+';
+            slash1.style.margin = '0px 2px';
+            const processingTeaSpan = document.createElement('span');
+            const slash2 = document.createElement('span');
+            slash2.textContent = '=';
+            slash2.style.margin = '0px 2px';
+            component.appendChild(slash1);
+            component.appendChild(processingTeaSpan);
+            component.appendChild(slash2);
+            const processingTeaComponent = new ProcessingTeaComponent();
+            processingTeaComponent.count = processableItem.count / recipeInputItem.count;
+            processingTeaComponent.CountSpan = processingTeaSpan;
+            MWI_Toolkit_ActionDetailPlus.processingTeaComponent = processingTeaComponent;
+            const totalInputWrap = origInputWrap.cloneNode(true);
+            const totalInput = totalInputWrap.querySelector('input');
+            totalInput.addEventListener('focus', () => { totalInput.select(); });
+            totalInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && origInput) {
+                    origInput.dispatchEvent(event);
+                }
+            });
+            component.appendChild(totalInputWrap);
+            const totalItemComponent = new OutputItemComponent();
+            totalItemComponent.count = processedItem.count + processableItem.count / recipeInputItem.count;
+            totalItemComponent.outputItemInput = totalInput;
+            MWI_Toolkit_ActionDetailPlus.outputItemComponents.push(totalItemComponent);
+            return component;
+        }
+        // 获取物品配方
+        static tryGetRecipe(itemHrid) {
+            const itemName = itemHrid.split('/').pop() || '';
+            // 检查商店兑换
+            const shopHrid = `/shop_items/${itemName}`;
+            if (MWI_Toolkit.initClientData?.shopItemDetailMap?.hasOwnProperty(shopHrid)) {
+                const shopItemDetail = MWI_Toolkit.initClientData?.shopItemDetailMap[shopHrid];
+                if (shopItemDetail.category === "/shop_categories/dungeon") {
+                    const recipe = { inputs: new Array, outputCount: 1 };
+                    shopItemDetail.costs.forEach(cost => {
+                        recipe.inputs.push({ itemHrid: cost.itemHrid, count: cost.count });
+                    });
+                    return recipe;
+                }
+            }
+            // 检查制造配方
+            const actionTypes = ["cheesesmithing", "crafting", "tailoring", "cooking", "brewing"];
+            for (const actionType of actionTypes) {
+                const actionHrid = `/actions/${actionType}/${itemName}`;
+                if (MWI_Toolkit.initClientData?.actionDetailMap?.hasOwnProperty(actionHrid)) {
+                    // 复用 MWI_Toolkit_ActionDetailPlus 的计算逻辑以获得输入/输出（考虑茶水等加成在 calculateRequiredItems 中已处理）
+                    const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid);
+                    if (upgradeItemHrid) {
+                        inputItems.push({ itemHrid: upgradeItemHrid, count: 1 });
+                    } // 升级物品固定需求数量1，添加到输入中
+                    let outputCount = 1;
+                    if (outputItems && outputItems.length > 0) {
+                        const matching = outputItems.find(o => o.itemHrid === itemHrid);
+                        if (matching)
+                            outputCount = matching.count || 1;
+                    }
+                    return { inputs: inputItems, outputCount };
+                }
+            }
+            return null;
+        }
         // 计算动作详情
-        static calculateActionDetail(actionHrid, ignoreProcessingTea = false) {
+        static calculateActionDetail(actionHrid) {
             const actionDetail = MWI_Toolkit_ActionDetailPlus.getActionDetail(actionHrid);
             const actionType = actionDetail?.type?.split('/').pop() || '';
             // 仅支持八种常规类型
@@ -1500,10 +1659,10 @@
                 const dropTable = actionDetail.dropTable;
                 for (const dropItem of dropTable) {
                     const averageCount = dropItem.dropRate * (dropItem.minCount + dropItem.maxCount) / 2 * (1 + gatheringBuff);
-                    const processedItemHrid = MWI_Toolkit_ActionDetailPlus.processableItemList[dropItem.itemHrid];
-                    if (processedItemHrid && !ignoreProcessingTea) {
+                    const processedItemHrid = MWI_Toolkit_ActionDetailPlus.processableItemMap.get(dropItem.itemHrid);
+                    if (processedItemHrid) {
                         outputItems.push({ itemHrid: dropItem.itemHrid, count: averageCount * (1 - processingBuff), });
-                        outputItems.push({ itemHrid: processedItemHrid, count: averageCount * (1 - processingBuff) / 2 / (1 - artisanBuff) + averageCount * processingBuff / 2, });
+                        outputItems.push({ itemHrid: processedItemHrid, count: averageCount * processingBuff / 2, });
                     }
                     else {
                         outputItems.push({ itemHrid: dropItem.itemHrid, count: averageCount, });
@@ -1521,78 +1680,6 @@
                 }
             }
             return { upgradeItemHrid, inputItems, outputItems };
-        }
-        // 创建产出物品输入组件
-        static createOutputItemComponent(itemHrid) {
-            const origComponent = document.querySelector('[class^="SkillActionDetail_maxActionCountInput"]');
-            if (!origComponent)
-                return null;
-            // 克隆外层div（不带子内容）
-            const component = origComponent.cloneNode(false);
-            const originalActionLabel = document.querySelector('[class^="SkillActionDetail_actionContainer"] [class^="SkillActionDetail_label"]');
-            if (Object.values(MWI_Toolkit_ActionDetailPlus.processableItemList).includes(itemHrid)) {
-                const tab = originalActionLabel.cloneNode(false);
-                tab.style.width = window.getComputedStyle(originalActionLabel).width;
-                tab.className = 'SkillActionDetail_tab';
-                tab.textContent = '┗';
-                component.appendChild(tab);
-            }
-            // 物品图标
-            const itemIcon = document.createElement('div');
-            itemIcon.style.width = window.getComputedStyle(originalActionLabel).width;
-            itemIcon.style.height = window.getComputedStyle(originalActionLabel).height;
-            itemIcon.style.marginRight = '2px';
-            itemIcon.style.display = 'flex';
-            itemIcon.style.alignItems = 'center';
-            itemIcon.style.justifyContent = 'center';
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('width', '20px');
-            svg.setAttribute('height', '20px');
-            svg.style.display = 'block';
-            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', MWI_Toolkit_Utils.getIconHrefByItemHrid(itemHrid));
-            svg.appendChild(use);
-            itemIcon.appendChild(svg);
-            component.appendChild(itemIcon);
-            // 输入框
-            const origInputWrap = origComponent.querySelector('[class^="SkillActionDetail_input"]');
-            const inputWrap = origInputWrap.cloneNode(true);
-            const origInput = origInputWrap.querySelector('input');
-            const input = inputWrap.querySelector('input');
-            input.addEventListener('focus', () => {
-                setTimeout(() => {
-                    input.select();
-                }, 0);
-            });
-            input.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    if (origInput) {
-                        origInput.dispatchEvent(event);
-                    }
-                }
-            });
-            component.appendChild(inputWrap);
-            if (!Object.values(MWI_Toolkit_ActionDetailPlus.processableItemList).includes(itemHrid)) {
-                // 快捷填充按钮
-                const btns = [
-                    { val: 1000, txt: '1k' },
-                    { val: 2000, txt: '2k' },
-                    { val: 5000, txt: '5k' }
-                ];
-                const origButtons = origComponent.querySelectorAll('button');
-                const buttonClass = origButtons.length > 0 ? origButtons[0].className : '';
-                btns.forEach(({ val, txt }) => {
-                    const btn = document.createElement('button');
-                    btn.className = buttonClass;
-                    btn.textContent = txt;
-                    btn.addEventListener('click', () => {
-                        input.value = val.toString();
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                    });
-                    component.appendChild(btn);
-                });
-            }
-            return { component, input };
         }
         // 获取当前动作名称
         static getActionName() {
@@ -1685,53 +1772,53 @@
             return 0;
         }
     }
-    MWI_Toolkit_ActionDetailPlus.processableActionList = {
-        "/items/milk": "/actions/milking/cow",
-        "/items/verdant_milk": "/actions/milking/verdant_cow",
-        "/items/azure_milk": "/actions/milking/azure_cow",
-        "/items/burble_milk": "/actions/milking/burble_cow",
-        "/items/crimson_milk": "/actions/milking/crimson_cow",
-        "/items/rainbow_milk": "/actions/milking/unicow",
-        "/items/holy_milk": "/actions/milking/holy_cow",
-        "/items/log": "/actions/woodcutting/tree",
-        "/items/birch_log": "/actions/woodcutting/birch_tree",
-        "/items/cedar_log": "/actions/woodcutting/cedar_tree",
-        "/items/purpleheart_log": "/actions/woodcutting/purpleheart_tree",
-        "/items/ginkgo_log": "/actions/woodcutting/ginkgo_tree",
-        "/items/redwood_log": "/actions/woodcutting/redwood_tree",
-        "/items/arcane_log": "/actions/woodcutting/arcane_tree",
-        "/items/cotton": "/actions/foraging/cotton",
-        "/items/flax": "/actions/foraging/flax",
-        "/items/bamboo_branch": "/actions/foraging/bamboo_branch",
-        "/items/cocoon": "/actions/foraging/cocoon",
-        "/items/radiant_fiber": "/actions/foraging/radiant_fiber"
-    };
-    MWI_Toolkit_ActionDetailPlus.processableItemList = {
-        "/items/milk": "/items/cheese",
-        "/items/verdant_milk": "/items/verdant_cheese",
-        "/items/azure_milk": "/items/azure_cheese",
-        "/items/burble_milk": "/items/burble_cheese",
-        "/items/crimson_milk": "/items/crimson_cheese",
-        "/items/rainbow_milk": "/items/rainbow_cheese",
-        "/items/holy_milk": "/items/holy_cheese",
-        "/items/log": "/items/lumber",
-        "/items/birch_log": "/items/birch_lumber",
-        "/items/cedar_log": "/items/cedar_lumber",
-        "/items/purpleheart_log": "/items/purpleheart_lumber",
-        "/items/ginkgo_log": "/items/ginkgo_lumber",
-        "/items/redwood_log": "/items/redwood_lumber",
-        "/items/arcane_log": "/items/arcane_lumber",
-        "/items/cotton": "/items/cotton_fabric",
-        "/items/flax": "/items/linen_fabric",
-        "/items/bamboo_branch": "/items/bamboo_fabric",
-        "/items/cocoon": "/items/silk_fabric",
-        "/items/radiant_fiber": "/items/radiant_fabric",
-        "/items/rough_hide": "/items/rough_leather",
-        "/items/reptile_hide": "/items/reptile_leather",
-        "/items/gobo_hide": "/items/gobo_leather",
-        "/items/beast_hide": "/items/beast_leather",
-        "/items/umbral_hide": "/items/umbral_leather"
-    };
+    MWI_Toolkit_ActionDetailPlus.processableActionMap = new Map([
+        ["/items/milk", "/actions/milking/cow"],
+        ["/items/verdant_milk", "/actions/milking/verdant_cow"],
+        ["/items/azure_milk", "/actions/milking/azure_cow"],
+        ["/items/burble_milk", "/actions/milking/burble_cow"],
+        ["/items/crimson_milk", "/actions/milking/crimson_cow"],
+        ["/items/rainbow_milk", "/actions/milking/unicow"],
+        ["/items/holy_milk", "/actions/milking/holy_cow"],
+        ["/items/log", "/actions/woodcutting/tree"],
+        ["/items/birch_log", "/actions/woodcutting/birch_tree"],
+        ["/items/cedar_log", "/actions/woodcutting/cedar_tree"],
+        ["/items/purpleheart_log", "/actions/woodcutting/purpleheart_tree"],
+        ["/items/ginkgo_log", "/actions/woodcutting/ginkgo_tree"],
+        ["/items/redwood_log", "/actions/woodcutting/redwood_tree"],
+        ["/items/arcane_log", "/actions/woodcutting/arcane_tree"],
+        ["/items/cotton", "/actions/foraging/cotton"],
+        ["/items/flax", "/actions/foraging/flax"],
+        ["/items/bamboo_branch", "/actions/foraging/bamboo_branch"],
+        ["/items/cocoon", "/actions/foraging/cocoon"],
+        ["/items/radiant_fiber", "/actions/foraging/radiant_fiber"]
+    ]);
+    MWI_Toolkit_ActionDetailPlus.processableItemMap = new Map([
+        ["/items/milk", "/items/cheese"],
+        ["/items/verdant_milk", "/items/verdant_cheese"],
+        ["/items/azure_milk", "/items/azure_cheese"],
+        ["/items/burble_milk", "/items/burble_cheese"],
+        ["/items/crimson_milk", "/items/crimson_cheese"],
+        ["/items/rainbow_milk", "/items/rainbow_cheese"],
+        ["/items/holy_milk", "/items/holy_cheese"],
+        ["/items/log", "/items/lumber"],
+        ["/items/birch_log", "/items/birch_lumber"],
+        ["/items/cedar_log", "/items/cedar_lumber"],
+        ["/items/purpleheart_log", "/items/purpleheart_lumber"],
+        ["/items/ginkgo_log", "/items/ginkgo_lumber"],
+        ["/items/redwood_log", "/items/redwood_lumber"],
+        ["/items/arcane_log", "/items/arcane_lumber"],
+        ["/items/cotton", "/items/cotton_fabric"],
+        ["/items/flax", "/items/linen_fabric"],
+        ["/items/bamboo_branch", "/items/bamboo_fabric"],
+        ["/items/cocoon", "/items/silk_fabric"],
+        ["/items/radiant_fiber", "/items/radiant_fabric"],
+        ["/items/rough_hide", "/items/rough_leather"],
+        ["/items/reptile_hide", "/items/reptile_leather"],
+        ["/items/gobo_hide", "/items/gobo_leather"],
+        ["/items/beast_hide", "/items/beast_leather"],
+        ["/items/umbral_hide", "/items/umbral_leather"]
+    ]);
     //#endregion
     //#region Utils
     class MWI_Toolkit_Utils {
@@ -1791,6 +1878,17 @@
         // 获取杂项图标链接
         static getIconHrefByMiscHrid(hrid) {
             return '/static/media/misc_sprite.6fa5e97c.svg#' + (hrid.split('/').pop() || '');
+        }
+        // 创建图标SVG元素
+        static createIconSvg(iconHref) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '18px');
+            svg.setAttribute('height', '18px');
+            svg.style.display = 'block';
+            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttributeNS('http://www.w3.org/1999/xlink', 'href', iconHref);
+            svg.appendChild(use);
+            return svg;
         }
         // 触发React对input元素的变更检测
         static reactInputTriggerHack(inputElem) {
