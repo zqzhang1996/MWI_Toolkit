@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.2.1
+// @version      5.2.2
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -269,6 +269,10 @@ interface ItemsUpdatedData {
         initDisplayProperties() {
             if (Object.values(MWI_Toolkit_ActionDetailPlus.processableItemList).includes(this.itemHrid)) {
                 this.categoryHrid = '/item_categories/materials';
+            } else if (this.itemHrid.endsWith('_tea')) {
+                this.categoryHrid = '/item_categories/tea';
+            } else if (this.itemHrid.endsWith('_coffee')) {
+                this.categoryHrid = '/item_categories/coffee';
             } else {
                 this.categoryHrid = MWI_Toolkit.initClientData?.itemDetailMap?.[this.itemHrid].categoryHrid;
             }
@@ -404,6 +408,8 @@ interface ItemsUpdatedData {
             '/item_categories/loot',
             '/item_categories/key',
             '/item_categories/food',
+            '/item_categories/tea',
+            '/item_categories/coffee',
             '/item_categories/drink',
             '/item_categories/ability_book',
             '/item_categories/equipment',
@@ -421,10 +427,64 @@ interface ItemsUpdatedData {
             return `MWI_Toolkit_Calculator_TargetItems_${characterID}`;
         }
 
-        // 保存目标物品
-        static saveTargetItems(): boolean {
+        // 保存所有 details 元素的 open 状态
+        static saveDetailsOpenState(): void {
+            const storageKey = MWI_Toolkit_Calculator.getStorageKey();
+            const storageKey_Details = storageKey.replace('TargetItems', 'DetailsOpenState');
+            const detailsState: Record<string, boolean> = {};
+            // 保存 targetItemDetailsMap
+            MWI_Toolkit_Calculator.targetItemDetailsMap.forEach((details, key) => {
+                detailsState[`target_${key}`] = details.open;
+            });
+            // 保存 shortageItemDetailsMap
+            MWI_Toolkit_Calculator.shortageItemDetailsMap.forEach((details, key) => {
+                detailsState[`shortage_${key}`] = details.open;
+            });
+            // 保存 requiredItemDetailsMap
+            MWI_Toolkit_Calculator.requiredItemDetailsMap.forEach((details, key) => {
+                detailsState[`required_${key}`] = details.open;
+            });
+            try {
+                GM_setValue(storageKey_Details, JSON.stringify(detailsState));
+            } catch (error) {
+                console.error('[MWI_Toolkit] 保存Details open状态失败', error);
+            }
+        }
+
+        // 恢复所有 details 元素的 open 状态
+        static restoreDetailsOpenState(storageKey_Details: string): void {
+            try {
+                const saved = GM_getValue(storageKey_Details, '{}');
+                const detailsState: Record<string, boolean> = JSON.parse(saved);
+                // 恢复 targetItemDetailsMap
+                MWI_Toolkit_Calculator.targetItemDetailsMap.forEach((details, key) => {
+                    if (typeof detailsState[`target_${key}`] === 'boolean') {
+                        details.open = detailsState[`target_${key}`];
+                    }
+                });
+                // 恢复 shortageItemDetailsMap
+                MWI_Toolkit_Calculator.shortageItemDetailsMap.forEach((details, key) => {
+                    if (typeof detailsState[`shortage_${key}`] === 'boolean') {
+                        details.open = detailsState[`shortage_${key}`];
+                    }
+                });
+                // 恢复 requiredItemDetailsMap
+                MWI_Toolkit_Calculator.requiredItemDetailsMap.forEach((details, key) => {
+                    if (typeof detailsState[`required_${key}`] === 'boolean') {
+                        details.open = detailsState[`required_${key}`];
+                    }
+                });
+            } catch (error) {
+                console.error('[MWI_Toolkit] 恢复Details open状态失败', error);
+            }
+        }
+
+        // 保存数据
+        static saveCalculatorData(): boolean {
             const storageKey = MWI_Toolkit_Calculator.getStorageKey();
             const storageKey_Category = storageKey.replace('TargetItems', 'TargetItemCategories');
+            const storageKey_Details = storageKey.replace('TargetItems', 'DetailsOpenState');
+            MWI_Toolkit_Calculator.saveDetailsOpenState();
             const dataToSave = [...MWI_Toolkit_Calculator.targetItemsMap.values()].map(item => ({
                 itemHrid: item.itemHrid,
                 count: item.count,
@@ -445,9 +505,11 @@ interface ItemsUpdatedData {
         }
 
         // 从特定角色ID加载数据
-        static loadTargetItems(characterID: number | null = null) {
+        static loadCalculatorData(characterID: number | null = null) {
             const storageKey = MWI_Toolkit_Calculator.getStorageKey(characterID);
             const storageKey_Category = storageKey.replace('TargetItems', 'TargetItemCategories');
+            const storageKey_Details = storageKey.replace('TargetItems', 'DetailsOpenState');
+            MWI_Toolkit_Calculator.restoreDetailsOpenState(storageKey_Details);
             try {
                 const savedData = GM_getValue(storageKey, '[]');
                 const savedData_Category = GM_getValue(storageKey_Category, '[]');
@@ -483,7 +545,7 @@ interface ItemsUpdatedData {
                     MWI_Toolkit_Calculator.targetItemsMap = validItemsMap;
                     MWI_Toolkit_Calculator.renderItemsDisplay();
 
-                    MWI_Toolkit_Calculator.saveTargetItems();
+                    MWI_Toolkit_Calculator.saveCalculatorData();
                 }
             } catch (error) {
                 console.error('[MWI_Toolkit]' + error);
@@ -527,7 +589,7 @@ interface ItemsUpdatedData {
         // 保存数据并计划渲染
         static saveAndScheduleRender(): void {
             // 保存数据到存储
-            MWI_Toolkit_Calculator.saveTargetItems();
+            MWI_Toolkit_Calculator.saveCalculatorData();
             MWI_Toolkit_Calculator.scheduleRender();
         }
 
@@ -655,7 +717,7 @@ interface ItemsUpdatedData {
             MWI_Toolkit_Calculator.targetItemsMap = new Map();
             MWI_Toolkit_Calculator.requiredItemsMap = new Map();
             // 加载保存数据
-            MWI_Toolkit_Calculator.loadTargetItems();
+            MWI_Toolkit_Calculator.loadCalculatorData();
 
             console.log('[MWI_Toolkit_Calculator] UI初始化完成');
         }
@@ -809,6 +871,10 @@ interface ItemsUpdatedData {
                 details.style.margin = '2px 0px';
                 details.style.padding = '2px 0px';
                 details.open = true;
+
+                details.addEventListener('toggle', () => {
+                    MWI_Toolkit_Calculator.saveDetailsOpenState();
+                });
 
                 const summary = document.createElement('summary');
                 summary.textContent = MWI_Toolkit_I18n.getName(categoryHrid, 'itemCategoryNames');
@@ -1092,7 +1158,7 @@ interface ItemsUpdatedData {
             // 如果InputValue是纯数字，则视为从特定角色加载数据
             if (/^\d+$/.test(InputValue)) {
                 const characterID = parseInt(InputValue, 10);
-                MWI_Toolkit_Calculator.loadTargetItems(characterID);
+                MWI_Toolkit_Calculator.loadCalculatorData(characterID);
                 return;
             }
             const itemHrid = MWI_Toolkit_I18n.getItemHridByName(InputValue);
@@ -2186,11 +2252,17 @@ interface ItemsUpdatedData {
         static getName(hrid: string, category: I18nCategory): string {
             if (!hrid || !category) { return hrid; }
             // 特例自定义itemCategory名称
-            if (hrid === '/item_categories/house_rooms') {
-                return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '房屋' : 'House';
-            }
-            if (hrid === '/item_categories/materials') {
-                return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '材料' : 'Materials';
+            if (category === 'itemCategoryNames') {
+                switch (hrid) {
+                    case '/item_categories/house_rooms':
+                        return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '房屋' : 'House';
+                    case '/item_categories/tea':
+                        return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '茶' : 'Tea';
+                    case '/item_categories/coffee':
+                        return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '咖啡' : 'Coffee';
+                    case '/item_categories/materials':
+                        return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '材料' : 'Materials';
+                }
             }
             return MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit_I18n?.getGameLanguage()]?.translation?.[category]?.[hrid] || hrid;
         }
