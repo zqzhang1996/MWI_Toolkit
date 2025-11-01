@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.2.0
+// @version      5.2.1
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -1659,7 +1659,12 @@ interface ItemsUpdatedData {
             "/items/flax": "/items/linen_fabric",
             "/items/bamboo_branch": "/items/bamboo_fabric",
             "/items/cocoon": "/items/silk_fabric",
-            "/items/radiant_fiber": "/items/radiant_fabric"
+            "/items/radiant_fiber": "/items/radiant_fabric",
+            "/items/rough_hide": "/items/rough_leather",
+            "/items/reptile_hide": "/items/reptile_leather",
+            "/items/gobo_hide": "/items/gobo_leather",
+            "/items/beast_hide": "/items/beast_leather",
+            "/items/umbral_hide": "/items/umbral_leather"
         };
 
         // 初始化监听器
