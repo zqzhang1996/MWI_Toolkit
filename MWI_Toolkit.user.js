@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.3.1
+// @version      5.3.2
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -1370,15 +1370,14 @@
             });
             skillActionTimeButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
-                    setTimeout(() => {
-                        skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
-                    }, 20);
+                    skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
                 });
             });
-            // 初次填充
-            setTimeout(() => {
+            MWI_Toolkit_ItemsMap.itemsUpdatedCallbacks.push(() => {
                 skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
-            }, 20);
+            });
+            // 初次填充
+            skillActionTimeInput.dispatchEvent(new Event('input', { bubbles: false }));
         }
         // 创建升级物品组件
         static createUpgradeItemComponent(upgradeItemHrid) {
