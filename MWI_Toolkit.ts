@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.3.2
+// @version      5.3.3
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -353,8 +353,10 @@ interface ItemsUpdatedData {
         shortageSpan: HTMLSpanElement = null;
         overflowSpan: HTMLSpanElement = null;
         requiredSpan: HTMLSpanElement = null;
+        displayNameSpan: HTMLSpanElement = null;
 
         updateDisplayElement() {
+            const netCount = this.shortageCount > 0 ? -this.shortageCount : this.overflowCount;
             if (this.shortageSpan) {
                 const newText = MWI_Toolkit_Utils.formatNumber(this.shortageCount);
                 if (this.shortageSpan.textContent !== newText) { this.shortageSpan.textContent = newText; }
@@ -370,19 +372,21 @@ interface ItemsUpdatedData {
                 }
             }
             if (this.overflowSpan) {
-                if (this.shortageCount > 0) {
-                    const newText = MWI_Toolkit_Utils.formatNumber(-this.shortageCount);
-                    if (this.overflowSpan.textContent !== newText) { this.overflowSpan.textContent = newText; }
-                    this.overflowSpan.style.color = '#f44336';
-                } else {
-                    const newText = MWI_Toolkit_Utils.formatNumber(this.overflowCount);
-                    if (this.overflowSpan.textContent !== newText) { this.overflowSpan.textContent = newText; }
-                    this.overflowSpan.style.color = '';
-                }
+                const newText = MWI_Toolkit_Utils.formatNumber(netCount);
+                if (this.overflowSpan.textContent !== newText) { this.overflowSpan.textContent = newText; }
+                this.overflowSpan.style.color = this.shortageCount > 0 ? '#eb3f3f' : '';
             }
             if (this.requiredSpan) {
                 const newText = MWI_Toolkit_Utils.formatNumber(this.count);
                 if (this.requiredSpan.textContent !== newText) { this.requiredSpan.textContent = newText; }
+            }
+            if (this.displayNameSpan) {
+                this.displayNameSpan.textContent = Math.floor(netCount / this.count * 100) + '%';
+                if (netCount < 0) { this.displayNameSpan.style.color = '#eb3f3f'; }
+                else if (netCount < this.count) { this.displayNameSpan.style.color = '#faa21e'; }
+                else if (netCount < 2 * this.count) { this.displayNameSpan.style.color = ''; }
+                else if (netCount < 4 * this.count) { this.displayNameSpan.style.color = '#59d0b9'; }
+                else { this.displayNameSpan.style.color = '#4aa3e6'; }
             }
         }
         removeDisplayElement() {
@@ -953,7 +957,7 @@ interface ItemsUpdatedData {
             // 清空按钮
             const clearAllButton = document.createElement('button');
             clearAllButton.textContent = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '清空' : 'Clear';
-            clearAllButton.style.background = '#f44336';
+            clearAllButton.style.background = '#eb3f3f';
             clearAllButton.style.color = '#FFFFFF';
             clearAllButton.style.border = 'none';
             clearAllButton.style.borderRadius = '4px';
@@ -1454,7 +1458,7 @@ interface ItemsUpdatedData {
 
             // 删除按钮
             const removeButton = document.createElement('button');
-            removeButton.style.background = '#f44336';
+            removeButton.style.background = '#eb3f3f';
             removeButton.style.border = 'none';
             removeButton.style.borderRadius = '4px';
             removeButton.style.padding = '4px';
@@ -1527,6 +1531,7 @@ interface ItemsUpdatedData {
             requiredItem.requiredDisplayElement = container;
             requiredItem.overflowSpan = overflowSpan;
             requiredItem.requiredSpan = requiredSpan;
+            requiredItem.displayNameSpan = itemContainer.querySelector('span');
             rightDiv.appendChild(RequiredCountDiv);
         }
 
@@ -1776,7 +1781,7 @@ interface ItemsUpdatedData {
                     else {
                         if (requiredCount > inventoryCount) {
                             component.shortageCountSpan.textContent = MWI_Toolkit_Utils.formatNumber(requiredCount - inventoryCount);
-                            component.inventoryCountSpan.style.color = '#f44336';
+                            component.inventoryCountSpan.style.color = '#eb3f3f';
                         } else {
                             component.shortageCountSpan.textContent = ' ';
                             component.inventoryCountSpan.style.color = '#E7E7E7';
