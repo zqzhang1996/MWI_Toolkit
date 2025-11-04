@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI_Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      5.3.3
+// @version      5.3.4
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
@@ -11,6 +11,8 @@
 // @grant        GM_getValue
 // @run-at       document-body
 // @license      MIT
+// @updateURL    https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js
+// @downloadURL  https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js
 // ==/UserScript==
 (function () {
     'use strict';
