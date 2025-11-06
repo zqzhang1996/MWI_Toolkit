@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.5
+// @version      5.3.6
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -2513,12 +2513,12 @@ interface ItemsUpdatedData {
                 get: function (this: MessageEvent): any {
                     const socket = this.currentTarget as WebSocket;
                     // 只拦截游戏服务器的 WebSocket 消息
-                    if (!(socket instanceof WebSocket) ||
-                        socket.url.indexOf("api.milkywayidle.com/ws") !== -1 ||
-                        socket.url.indexOf("api-test.milkywayidle.com/ws") !== -1 ||
-                        socket.url.indexOf("api.milkywayidlecn.com/ws") !== -1 ||
-                        socket.url.indexOf("api-test.milkywayidlecn.com/ws") !== -1
-                    ) {
+                    if (!(socket instanceof WebSocket) || (
+                        socket.url.indexOf("api.milkywayidle.com/ws") === -1 &&
+                        socket.url.indexOf("api-test.milkywayidle.com/ws") === -1 &&
+                        socket.url.indexOf("api.milkywayidlecn.com/ws") === -1 &&
+                        socket.url.indexOf("api-test.milkywayidlecn.com/ws") === -1
+                    )) {
                         return oriGet.call(this);
                     }
                     const message = oriGet.call(this);
