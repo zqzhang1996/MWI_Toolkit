@@ -1,16 +1,18 @@
 // ==UserScript==
 // @name         MWI_Toolkit
+// @version      5.3.5
 // @namespace    http://tampermonkey.net/
-// @version      5.3.4
 // @description  MWI工具集
 // @author       zqzhang1996
 // @match        https://www.milkywayidle.com/*
 // @match        https://test.milkywayidle.com/*
-// @require      https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js
+// @match        https://www.milkywayidlecn.com/*
+// @match        https://test.milkywayidlecn.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-body
 // @license      MIT
+// @require      https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js
 // @updateURL    https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js
 // @downloadURL  https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js
 // ==/UserScript==
@@ -2050,7 +2052,10 @@
                     const socket = this.currentTarget;
                     // 只拦截游戏服务器的 WebSocket 消息
                     if (!(socket instanceof WebSocket) ||
-                        (socket.url.indexOf("api.milkywayidle.com/ws") === -1 && socket.url.indexOf("api-test.milkywayidle.com/ws") === -1)) {
+                        socket.url.indexOf("api.milkywayidle.com/ws") !== -1 ||
+                        socket.url.indexOf("api-test.milkywayidle.com/ws") !== -1 ||
+                        socket.url.indexOf("api.milkywayidlecn.com/ws") !== -1 ||
+                        socket.url.indexOf("api-test.milkywayidlecn.com/ws") !== -1) {
                         return oriGet.call(this);
                     }
                     const message = oriGet.call(this);
