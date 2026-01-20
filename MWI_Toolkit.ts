@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.6
+// @version      5.3.7
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -319,7 +319,7 @@ interface ItemsUpdatedData {
             }
             if (this.targetInput) {
                 const newText = this.count.toString();
-                if (this.targetInput.value.trim() === '' && this.count != 0) { this.targetInput.value = newText; }
+                if (this.targetInput.value.trim() != newText) { this.targetInput.value = newText; }
             }
         }
         removeDisplayElement() {
@@ -567,6 +567,27 @@ interface ItemsUpdatedData {
             const item = MWI_Toolkit_Calculator.targetItemsMap.get(itemHrid);
             if (item) {
                 item.count = count;
+                item.updateDisplayElement();
+            } else {
+                // 添加新物品
+                if (itemHrid.includes('/items/')) {
+                    MWI_Toolkit_Calculator.targetItemsMap.set(itemHrid, new TargetItem(itemHrid, count));
+                }
+                if (itemHrid.includes('/house_rooms/')) {
+                    MWI_Toolkit_Calculator.targetItemsMap.set(itemHrid, new TargetHouseRoom(itemHrid, count));
+                }
+            }
+            MWI_Toolkit_Calculator.saveAndScheduleRender();
+        }
+
+        // 添加目标物品
+        static addTargetItem(itemHrid: string, count = 1): void {
+            if (!itemHrid) return;
+
+            const item = MWI_Toolkit_Calculator.targetItemsMap.get(itemHrid);
+            if (item) {
+                item.count += count;
+                item.updateDisplayElement();
             } else {
                 // 添加新物品
                 if (itemHrid.includes('/items/')) {
@@ -1133,7 +1154,7 @@ interface ItemsUpdatedData {
             const itemHrid = MWI_Toolkit_I18n.getItemHridByName(InputValue);
             if (!itemHrid) return;
             const count = parseInt(countInput.value, 10) || 1;
-            MWI_Toolkit_Calculator.updateTargetItem(itemHrid, count);
+            MWI_Toolkit_Calculator.addTargetItem(itemHrid, count);
             itemSearchInput.value = '';
             countInput.value = '1';
             searchResults.style.display = 'none';
