@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.7
+// @version      5.3.8
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -2164,7 +2164,7 @@
             if (!gamePageElement)
                 return null;
             // 查找React Fiber的key（格式：__reactFiber$xxx）
-            const reactKey = Object.keys(gamePageElement).find(k => k.startsWith('__reactFiber$'));
+            const reactKey = Reflect.ownKeys(gamePageElement).find(k => typeof k === 'string' && k.startsWith('__reactFiber$'));
             if (!reactKey)
                 return null;
             // 通过Fiber节点获取组件实例
