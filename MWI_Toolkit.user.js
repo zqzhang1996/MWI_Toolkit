@@ -1913,7 +1913,7 @@
         }
         // 获取物品图标链接
         static getIconHrefByItemHrid(itemHrid) {
-            return '/static/media/items_sprite.d4d08849.svg#' + (itemHrid.split('/').pop() || '');
+            return '/static/media/items_sprite.9c39e2ec.svg#' + (itemHrid.split('/').pop() || '');
         }
         // 获取技能图标链接
         static getIconHrefBySkillHrid(skillHrid) {

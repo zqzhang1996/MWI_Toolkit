@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.9
+// @version      5.3.10
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -2354,7 +2354,7 @@ interface ItemsUpdatedData {
 
         // 获取物品图标链接
         static getIconHrefByItemHrid(itemHrid: string): string {
-            return '/static/media/items_sprite.d4d08849.svg#' + (itemHrid.split('/').pop() || '');
+            return '/static/media/items_sprite.9c39e2ec.svg#' + (itemHrid.split('/').pop() || '');
         }
 
         // 获取技能图标链接
