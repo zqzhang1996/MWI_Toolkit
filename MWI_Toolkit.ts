@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.8
+// @version      5.3.9
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -415,6 +415,8 @@ interface ItemsUpdatedData {
             '/item_categories/currency',
             '/item_categories/loot',
             '/item_categories/key',
+            '/item_categories/labyrinth',
+            "/item_categories/dungeon_key",
             '/item_categories/food',
             '/item_categories/tea',
             '/item_categories/coffee',
@@ -422,7 +424,7 @@ interface ItemsUpdatedData {
             '/item_categories/ability_book',
             '/item_categories/equipment',
             '/item_categories/materials',
-            '/item_categories/resource',
+            '/item_categories/resource'
         ];
 
         static renderTimeout: number | null = null;
