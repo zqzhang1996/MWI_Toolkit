@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         MWI_Toolkit
-// @version      5.3.10
+// @name         MWI_Toolkit改
+// @version      5.3.11
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -13,8 +13,6 @@
 // @run-at       document-body
 // @license      MIT
 // @require      https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js
-// @updateURL    https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js
-// @downloadURL  https://gitee.com/zqzhang1996/MWI_Toolkit/raw/main/MWI_Toolkit.user.js
 // ==/UserScript==
 (function () {
     'use strict';
@@ -65,6 +63,7 @@
         constructor(itemHrid, count, needCalc = true) {
             super(itemHrid, count);
             this.needCalc = true;
+            this.categoryOverride = null;
             this.displayElement = null;
             this.needCalcCheckbox = null;
             this.ownedSpan = null;
@@ -91,6 +90,7 @@
         }
         removeDisplayElement() {
             this.displayElement?.remove();
+            this.displayElement = null;
         }
     }
     class TargetHouseRoom extends TargetItem {
@@ -175,6 +175,8 @@
         removeDisplayElement() {
             this.shortageDisplayElement?.remove();
             this.requiredDisplayElement?.remove();
+            this.shortageDisplayElement = null;
+            this.requiredDisplayElement = null;
         }
     }
     class MWI_Toolkit_Calculator {
@@ -246,7 +248,8 @@
             const dataToSave = [...MWI_Toolkit_Calculator.targetItemsMap.values()].map(item => ({
                 itemHrid: item.itemHrid,
                 count: item.count,
-                needCalc: item.needCalc
+                needCalc: item.needCalc,
+                categoryOverride: item.categoryOverride || null
             }));
             const dataToSave_Category = [...MWI_Toolkit_Calculator.targetItemCategoryMap.values()].map(category => ({
                 categoryHrid: category.categoryHrid,
@@ -276,12 +279,18 @@
                 // 验证并转换为Item实例
                 const validItemsMap = new Map(loadedItems.map((item) => {
                     try {
+                        let targetItem = null;
                         if (item.itemHrid.includes('/items/')) {
-                            return [item.itemHrid, new TargetItem(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)];
+                            targetItem = new TargetItem(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true);
                         }
                         if (item.itemHrid.includes('/house_rooms/')) {
-                            return [item.itemHrid, new TargetHouseRoom(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true)];
+                            targetItem = new TargetHouseRoom(item.itemHrid, item.count, typeof item.needCalc === 'boolean' ? item.needCalc : true);
                         }
+                        if (targetItem && item.categoryOverride) {
+                            targetItem.categoryOverride = item.categoryOverride;
+                            targetItem.categoryHrid = item.categoryOverride;
+                        }
+                        return targetItem ? [item.itemHrid, targetItem] : null;
                     }
                     catch {
                         return null;
@@ -360,6 +369,135 @@
             MWI_Toolkit_Calculator.targetItemsMap.clear();
             MWI_Toolkit_Calculator.saveAndScheduleRender();
         }
+        // 清空指定分类下的目标物品
+        static clearCategoryItems(categoryHrid) {
+            const toRemove = [];
+            MWI_Toolkit_Calculator.targetItemsMap.forEach((item, itemHrid) => {
+                if (item.categoryHrid === categoryHrid) {
+                    item.removeDisplayElement();
+                    toRemove.push(itemHrid);
+                }
+            });
+            toRemove.forEach(itemHrid => MWI_Toolkit_Calculator.targetItemsMap.delete(itemHrid));
+            if (toRemove.length > 0) {
+                MWI_Toolkit_Calculator.saveAndScheduleRender();
+            }
+        }
+        // 导入任务到计算器
+        static importTasksToCalculator() {
+            const actionDetailMap = MWI_Toolkit.initClientData?.actionDetailMap;
+            if (!actionDetailMap) return 0;
+            const taskEls = document.querySelectorAll('[class*="RandomTask_randomTask"]');
+            if (taskEls.length === 0) return 0;
+            let importedCount = 0;
+            for (const el of taskEls) {
+                // 通过React Fiber获取actionHrid
+                let fiberKey = null;
+                for (const prop of Reflect.ownKeys(el)) {
+                    if (typeof prop === 'string' && (prop.startsWith('__reactFiber$') || prop.startsWith('__reactInternalInstance$'))) {
+                        fiberKey = prop;
+                        break;
+                    }
+                }
+                if (!fiberKey) continue;
+                let actionHrid = null;
+                let f = el[fiberKey];
+                for (let depth = 0; depth < 20 && f; depth++) {
+                    const props = f.memoizedProps;
+                    if (props) {
+                        if (props.task?.actionHrid) { actionHrid = props.task.actionHrid; break; }
+                        if (props.randomTask?.actionHrid) { actionHrid = props.randomTask.actionHrid; break; }
+                        if (props.actionHrid) { actionHrid = props.actionHrid; break; }
+                        for (const key of Object.keys(props)) {
+                            const val = props[key];
+                            if (val && typeof val === 'object' && !Array.isArray(val) && val.actionHrid) {
+                                actionHrid = val.actionHrid;
+                                break;
+                            }
+                        }
+                        if (actionHrid) break;
+                    }
+                    f = f.return;
+                }
+                if (!actionHrid) continue;
+                // 从DOM获取剩余数量
+                const info = el.querySelector('[class*="RandomTask_taskInfo"]');
+                if (!info) continue;
+                let remaining = 0;
+                const allDivs = info.querySelectorAll('div');
+                for (const div of allDivs) {
+                    const pm = div.textContent.match(/(\d[\d,]*)\s*\/\s*(\d[\d,]*)/);
+                    if (pm) {
+                        const done = parseInt(pm[1].replace(/,/g, ''), 10) || 0;
+                        const total = parseInt(pm[2].replace(/,/g, ''), 10) || 0;
+                        remaining = Math.max(0, total - done);
+                        break;
+                    }
+                }
+                if (remaining <= 0) continue;
+                // 获取动作详情，只导入制造任务（有inputItems的动作）
+                const action = actionDetailMap[actionHrid];
+                if (!action || !action.inputItems || action.inputItems.length === 0) continue;
+                if (!action.outputItems || action.outputItems.length === 0) continue;
+                const outputItemHrid = action.outputItems[0].itemHrid;
+                if (!outputItemHrid) continue;
+                // 计算目标：已拥有 + 任务剩余，确保计算器扣除库存后仍能覆盖任务需求
+                const owned = MWI_Toolkit_ItemsMap.getCount(outputItemHrid);
+                const target = owned + remaining;
+                // 直接设置到targetItemsMap，避免每次触发saveAndScheduleRender
+                const existingItem = MWI_Toolkit_Calculator.targetItemsMap.get(outputItemHrid);
+                if (existingItem) {
+                    existingItem.count = target;
+                    existingItem.removeDisplayElement();
+                    existingItem.categoryOverride = '/item_categories/task';
+                    existingItem.categoryHrid = '/item_categories/task';
+                } else {
+                    const newItem = new TargetItem(outputItemHrid, target);
+                    newItem.categoryOverride = '/item_categories/task';
+                    newItem.categoryHrid = '/item_categories/task';
+                    MWI_Toolkit_Calculator.targetItemsMap.set(outputItemHrid, newItem);
+                }
+                importedCount++;
+            }
+            if (importedCount > 0) {
+                MWI_Toolkit_Calculator.saveAndScheduleRender();
+            }
+            return importedCount;
+        }
+        // 打开市场购买面板并自动填充数量
+        static openMarketForItem(itemHrid, quantity) {
+            if (!itemHrid || !itemHrid.includes('/items/')) return;
+            if (!MWI_Toolkit.gameObject?.handleGoToMarketplace) return;
+            quantity = Math.ceil(quantity);
+            if (quantity <= 0) return;
+            MWI_Toolkit.gameObject.handleGoToMarketplace(itemHrid, 0);
+            // 监听市场弹窗并自动填充数量
+            MWI_Toolkit_Calculator._pendingMarketQuantity = quantity;
+            if (MWI_Toolkit_Calculator._marketWatchTimer) {
+                clearInterval(MWI_Toolkit_Calculator._marketWatchTimer);
+            }
+            let attempts = 0;
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            MWI_Toolkit_Calculator._marketWatchTimer = setInterval(() => {
+                attempts++;
+                if (attempts > 50) {
+                    clearInterval(MWI_Toolkit_Calculator._marketWatchTimer);
+                    MWI_Toolkit_Calculator._marketWatchTimer = null;
+                    return;
+                }
+                const modalContent = document.querySelector('[class*="MarketplacePanel_modalContent"]');
+                if (!modalContent) return;
+                const quantitySection = modalContent.querySelector('[class*="quantityInputs"]');
+                if (!quantitySection) return;
+                const qtyInput = quantitySection.querySelector('input[type="number"]');
+                if (!qtyInput || qtyInput.dataset.mwiToolkitFilled) return;
+                qtyInput.dataset.mwiToolkitFilled = '1';
+                nativeInputValueSetter.call(qtyInput, String(MWI_Toolkit_Calculator._pendingMarketQuantity));
+                qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                clearInterval(MWI_Toolkit_Calculator._marketWatchTimer);
+                MWI_Toolkit_Calculator._marketWatchTimer = null;
+            }, 300);
+        }
         // 保存数据并计划渲染
         static saveAndScheduleRender() {
             // 保存数据到存储
@@ -429,6 +567,49 @@
             MWI_Toolkit_ItemsMap.itemsUpdatedCallbacks.push((enditemsMap) => {
                 MWI_Toolkit_Calculator.scheduleRender();
             });
+        }
+        // 初始化任务面板UI（在任务面板注入导入按钮）
+        static initializeTaskPanelUI() {
+            if (MWI_Toolkit_Calculator._taskPanelObserver) {
+                MWI_Toolkit_Calculator._taskPanelObserver.disconnect();
+            }
+            MWI_Toolkit_Calculator._taskPanelObserver = new MutationObserver(() => {
+                MWI_Toolkit_Calculator.injectImportTasksButton();
+            });
+            MWI_Toolkit_Calculator._taskPanelObserver.observe(document.body, { childList: true, subtree: true });
+            MWI_Toolkit_Calculator.injectImportTasksButton();
+        }
+        // 在任务面板注入导入任务按钮（放在TasksPanel_taskSlotCount内，与操作优化一致）
+        static injectImportTasksButton() {
+            const taskBoardInfo = document.querySelector('[class*="TasksPanel_taskBoardInfo"]');
+            if (!taskBoardInfo) return;
+            if (taskBoardInfo.querySelector('.mwi-toolkit-import-tasks-btn')) return;
+            const btn = document.createElement('button');
+            btn.className = 'mwi-toolkit-import-tasks-btn';
+            btn.textContent = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '导入计算器' : 'Import';
+            btn.style.background = '#1770b3';
+            btn.style.color = '#FFFFFF';
+            btn.style.border = 'none';
+            btn.style.borderRadius = 'var(--radius-sm, 0.25rem)';
+            btn.style.padding = '0 var(--button-padding-x-normal, 0.625rem)';
+            btn.style.cursor = 'pointer';
+            btn.style.fontSize = 'var(--font-size-base, 0.875rem)';
+            btn.style.fontWeight = '600';
+            btn.style.fontFamily = 'Roboto, Helvetica, Arial, sans-serif';
+            btn.style.height = 'var(--form-control-height-normal, 1.875rem)';
+            btn.style.lineHeight = '1.3';
+            btn.addEventListener('click', () => {
+                const count = MWI_Toolkit_Calculator.importTasksToCalculator();
+                if (count === 0) {
+                    alert((MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '未找到可导入的制造任务' : 'No crafting tasks found');
+                }
+            });
+            const slotCount = taskBoardInfo.querySelector('[class*="TasksPanel_taskSlotCount"]');
+            if (slotCount) {
+                slotCount.appendChild(btn);
+            } else {
+                taskBoardInfo.appendChild(btn);
+            }
         }
         // 初始化计算器UI
         static initializeCalculatorUI() {
@@ -537,6 +718,17 @@
                     MWI_Toolkit_Calculator.saveAndScheduleRender();
                 });
                 summary.prepend(checkbox);
+                // 分类清空按钮
+                const clearCategoryBtn = document.createElement('span');
+                clearCategoryBtn.textContent = '✕';
+                clearCategoryBtn.title = (MWI_Toolkit_I18n.getGameLanguage() === 'zh') ? '清空该分类' : 'Clear category';
+                clearCategoryBtn.style.cssText = 'float:right;cursor:pointer;padding:0 6px;font-size:12px;color:#ff6b6b;font-weight:bold;line-height:20px;';
+                clearCategoryBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    MWI_Toolkit_Calculator.clearCategoryItems(categoryHrid);
+                });
+                summary.appendChild(clearCategoryBtn);
             });
             // 右侧区域
             const rightDiv = document.createElement('div');
@@ -1083,6 +1275,12 @@
         // 创建目标物品元素
         static createTargetItemDisplayElement(targetItem) {
             const { container, itemContainer, rightDiv } = MWI_Toolkit_Calculator.createBaseItemDisplayItem(targetItem);
+            // 双击物品名称打开市场
+            itemContainer.style.cursor = 'pointer';
+            itemContainer.addEventListener('dblclick', () => {
+                const shortage = Math.max(0, targetItem.count - targetItem.getOwnedCount());
+                MWI_Toolkit_Calculator.openMarketForItem(targetItem.itemHrid, Math.ceil(shortage));
+            });
             const needCalcCheckbox = document.createElement('input');
             needCalcCheckbox.type = 'checkbox';
             container.prepend(needCalcCheckbox);
@@ -1148,6 +1346,11 @@
         // 创建缺口物品元素
         static createShortageItemDisplayElement(requiredItem) {
             const { container, itemContainer, rightDiv } = MWI_Toolkit_Calculator.createBaseItemDisplayItem(requiredItem);
+            // 双击物品名称打开市场
+            itemContainer.style.cursor = 'pointer';
+            itemContainer.addEventListener('dblclick', () => {
+                MWI_Toolkit_Calculator.openMarketForItem(requiredItem.itemHrid, Math.ceil(requiredItem.shortageCount));
+            });
             const shortageSpan = document.createElement('span');
             shortageSpan.style.background = '#393a5b';
             shortageSpan.style.borderRadius = '4px';
@@ -1166,6 +1369,11 @@
         // 创建需求物品元素
         static createRequiredItemDisplayElement(requiredItem) {
             const { container, itemContainer, rightDiv } = MWI_Toolkit_Calculator.createBaseItemDisplayItem(requiredItem);
+            // 双击物品名称打开市场
+            itemContainer.style.cursor = 'pointer';
+            itemContainer.addEventListener('dblclick', () => {
+                MWI_Toolkit_Calculator.openMarketForItem(requiredItem.itemHrid, Math.ceil(requiredItem.shortageCount));
+            });
             const RequiredCountDiv = document.createElement('div');
             RequiredCountDiv.style.padding = '4px 1px';
             RequiredCountDiv.style.marginLeft = '4px';
@@ -1293,6 +1501,7 @@
     MWI_Toolkit_Calculator.shortageItemDetailsMap = new Map();
     MWI_Toolkit_Calculator.requiredItemDetailsMap = new Map();
     MWI_Toolkit_Calculator.itemCategoryList = [
+        '/item_categories/task',
         '/item_categories/house_rooms',
         '/item_categories/currency',
         '/item_categories/loot',
@@ -1309,6 +1518,9 @@
         '/item_categories/resource'
     ];
     MWI_Toolkit_Calculator.renderTimeout = null;
+    MWI_Toolkit_Calculator._marketWatchTimer = null;
+    MWI_Toolkit_Calculator._pendingMarketQuantity = 0;
+    MWI_Toolkit_Calculator._taskPanelObserver = null;
     //#endregion
     //#region ActionDetailPlus
     class UpgradeItemComponent {
@@ -1980,6 +2192,8 @@
                         return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '咖啡' : 'Coffee';
                     case '/item_categories/materials':
                         return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '材料' : 'Materials';
+                    case '/item_categories/task':
+                        return MWI_Toolkit_I18n?.getGameLanguage() === 'zh' ? '任务' : 'Tasks';
                 }
             }
             return MWI_Toolkit.gameObject?.props?.i18n?.options?.resources?.[MWI_Toolkit_I18n?.getGameLanguage()]?.translation?.[category]?.[hrid] || hrid;
@@ -2118,6 +2332,7 @@
             }
             console.log("[MWI_Toolkit] 界面刷新");
             MWI_Toolkit_Calculator.initializeCalculatorUI();
+            MWI_Toolkit_Calculator.initializeTaskPanelUI();
             MWI_Toolkit.waitForElement('[class^="GamePage"]', () => {
                 MWI_Toolkit.gameObject = MWI_Toolkit.getGameObject();
             });
@@ -2156,6 +2371,7 @@
             MWI_Toolkit.initialized = true;
             MWI_Toolkit_ActionDetailPlus.initialize();
             MWI_Toolkit_Calculator.initialize();
+            MWI_Toolkit_Calculator.initializeTaskPanelUI();
             console.log("[MWI_Toolkit] 已初始化");
             console.log(MWI_Toolkit.gameObject, MWI_Toolkit.initClientData);
         }
