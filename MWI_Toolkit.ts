@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.10
+// @version      5.3.11
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -1623,7 +1623,7 @@ interface ItemsUpdatedData {
             const { upgradeItemHrid, inputItems, outputItems } = MWI_Toolkit_ActionDetailPlus.calculateActionDetail(actionHrid);
             const outputCount = outputItems.find(oi => oi.itemHrid === requiredItem.itemHrid)?.count;
             if (!outputCount) { return; }
-            if (!actionHrid.includes('milking') && !actionHrid.includes('foraging') && !actionHrid.includes('woodcutting')) {
+            if (!actionHrid.includes('/milking/') && !actionHrid.includes('/foraging/') && !actionHrid.includes('/woodcutting/')) {
                 // 其他情况直接计算所需次数
                 const actionCount = Math.ceil(requiredItem.shortageCount / outputCount);
                 MWI_Toolkit.gameObject.handleGoToAction(actionHrid, actionCount);
