@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI_Toolkit
-// @version      5.3.11
+// @version      5.3.12
 // @namespace    http://tampermonkey.net/
 // @description  MWI工具集
 // @author       zqzhang1996
@@ -53,6 +53,7 @@ interface GameObject {
     language: I18nLanguage;
     props: {
         i18n: {
+            language: string;
             options: I18nOptions;
         };
     };
@@ -2409,8 +2410,8 @@ interface ItemsUpdatedData {
 
     class MWI_Toolkit_I18n {
         // 获取当前游戏语言
-        static getGameLanguage(): I18nLanguage {
-            return MWI_Toolkit.gameObject?.language || 'zh';
+        static getGameLanguage(): string {
+            return MWI_Toolkit.gameObject?.props.i18n.language || 'zh';
         }
 
         // 获取物品名称
